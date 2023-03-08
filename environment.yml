@@ -1,4 +1,4 @@
-name: package_template
+name: hippocampus_content_neurofeedback
 channels:
 - defaults
 - conda-forge
@@ -25,3 +25,5 @@ dependencies:
 - autopep8
 - black
 - isort
+- spyglass
+- scipy
