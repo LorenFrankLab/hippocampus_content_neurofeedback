@@ -37,12 +37,12 @@ warnings.simplefilter("ignore", category=ResourceWarning)
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
-schema = dj.schema("mcoulter_realtime_error")
+schema = dj.schema("mcoulter_realtime_error_all")
 
 
 # parameters
 @schema
-class RealtimeErrorParameters(dj.Manual):
+class RealtimeErrorAllParameters(dj.Manual):
     definition = """
     realtime_error_param_name : varchar(500)
     ---
@@ -70,19 +70,19 @@ class RealtimeErrorParameters(dj.Manual):
 # i dont think we need samplecount or statescriptfile in this list
 # select parameters and cluster
 @schema
-class RealtimeErrorSelection(dj.Manual):
+class RealtimeErrorAllSelection(dj.Manual):
     definition = """
     -> RealtimeFilename
-    -> RealtimeErrorParameters
+    -> RealtimeErrorAllParameters
     ---
     """
 
 
 # this is the computed table - basically it has the results of the analysis
 @schema
-class RealtimeError(dj.Computed):
+class RealtimeErrorAll(dj.Computed):
     definition = """
-    -> RealtimeErrorSelection
+    -> RealtimeErrorAllSelection
     ---
     error_table : blob
 
@@ -102,7 +102,7 @@ class RealtimeError(dj.Computed):
 
         # these are all in the paramters set now
         error_parameters = (
-            RealtimeErrorParameters
+            RealtimeErrorAllParameters
             & {"realtime_error_param_name": key["realtime_error_param_name"]}
         ).fetch()[0][1]
         center_well_bin = error_parameters["center_well_bin"]
@@ -377,283 +377,157 @@ class RealtimeError(dj.Computed):
             # arm1_last_three = arm1_runs_pandas[(arm1_runs_pandas['start']<task2_start_ts)&(arm1_runs_pandas['start']>1)][0:3]
             # arm2_last_three = arm2_runs_pandas[(arm2_runs_pandas['start']<task2_start_ts)&(arm2_runs_pandas['start']>1)][0:3]
 
-            # check that arms exist
-            if arm1_last_three.shape[0] > 0 and arm2_last_three.shape[0] > 0:
-                # first get average timebin for position 23 and 39
-                bin_23_1 = decoder_data[
-                    (decoder_data["bin_timestamp"] > arm1_last_three["start"].values[0])
-                    & (decoder_data["bin_timestamp"] < arm1_last_three["end"].values[0])
-                    & (decoder_data["velocity"] > velocity_filter)
-                    & (decoder_data["real_pos"] == 23)
-                ].shape[0]
-                bin_23_2 = decoder_data[
-                    (decoder_data["bin_timestamp"] > arm1_last_three["start"].values[1])
-                    & (decoder_data["bin_timestamp"] < arm1_last_three["end"].values[1])
-                    & (decoder_data["velocity"] > velocity_filter)
-                    & (decoder_data["real_pos"] == 23)
-                ].shape[0]
-                bin_23_3 = decoder_data[
-                    (decoder_data["bin_timestamp"] > arm1_last_three["start"].values[2])
-                    & (decoder_data["bin_timestamp"] < arm1_last_three["end"].values[2])
-                    & (decoder_data["velocity"] > velocity_filter)
-                    & (decoder_data["real_pos"] == 23)
-                ].shape[0]
+            # all different
+            # choose earliest time
 
-                bin_23_avg = int(np.average([bin_23_1, bin_23_2, bin_23_3]) / 2)
-                # statistics.mean([])
-                print("position 23 average time bins", bin_23_avg)
+            if arm1_last_three["start"].values[0] < arm2_last_three["start"].values[0]:
+                last_3_start_time = arm1_last_three["start"].values[0].copy()
+            elif (
+                arm1_last_three["start"].values[0] > arm2_last_three["start"].values[0]
+            ):
+                last_3_start_time = arm2_last_three["start"].values[0].copy()
 
-                bin_39_1 = decoder_data[
-                    (decoder_data["bin_timestamp"] > arm2_last_three["start"].values[0])
-                    & (decoder_data["bin_timestamp"] < arm2_last_three["end"].values[0])
-                    & (decoder_data["velocity"] > velocity_filter)
-                    & (decoder_data["real_pos"] == 39)
-                ].shape[0]
-                bin_39_2 = decoder_data[
-                    (decoder_data["bin_timestamp"] > arm2_last_three["start"].values[1])
-                    & (decoder_data["bin_timestamp"] < arm2_last_three["end"].values[1])
-                    & (decoder_data["velocity"] > velocity_filter)
-                    & (decoder_data["real_pos"] == 39)
-                ].shape[0]
-                bin_39_3 = decoder_data[
-                    (decoder_data["bin_timestamp"] > arm2_last_three["start"].values[2])
-                    & (decoder_data["bin_timestamp"] < arm2_last_three["end"].values[2])
-                    & (decoder_data["velocity"] > velocity_filter)
-                    & (decoder_data["real_pos"] == 39)
-                ].shape[0]
+            arm_run_decoder = decoder_data[
+                (decoder_data["bin_timestamp"] > last_3_start_time)
+                & (decoder_data["bin_timestamp"] < task2_start_ts)
+                & (decoder_data["velocity"] > velocity_filter)
+            ]
+            arm_run_decoder["post_max"] = (
+                arm_run_decoder.iloc[:, 27:68]
+                .idxmax(axis=1)
+                .str.slice(1, 3, 1)
+                .astype("int16")
+            )
 
-                bin_39_avg = int(np.average([bin_39_1, bin_39_2, bin_39_3]) / 2)
-                print("position 39 average time bins", bin_39_avg)
+            # need to remove time bins with 0 spikes - no posterior
+            arm_run_decoder_spikes = arm_run_decoder[arm_run_decoder["spike_count"] > 0]
+            print("bins for decoder quality", arm_run_decoder_spikes.shape)
 
-                # arm 1
-                for j in np.arange(number_of_runs):
-                    arm_run_decoder = decoder_data[
-                        (
-                            decoder_data["bin_timestamp"]
-                            > arm1_last_three["start"].values[j]
-                        )
-                        & (
-                            decoder_data["bin_timestamp"]
-                            < arm1_last_three["end"].values[j]
-                        )
-                        & (decoder_data["velocity"] > velocity_filter)
-                    ]
-                    arm_run_decoder["post_max"] = (
-                        arm_run_decoder.iloc[:, 27:68]
-                        .idxmax(axis=1)
-                        .str.slice(1, 3, 1)
-                        .astype("int16")
-                    )
+            # need to break into 9 tables for accurate error distance measure
+            ## ARM 1
+            arm_run_decoder_spikes_1_to_box = arm_run_decoder_spikes[
+                (arm_run_decoder_spikes["real_pos"] > 10)
+                & (arm_run_decoder_spikes["real_pos"] < 26)
+                & (arm_run_decoder_spikes["post_max"] < 10)
+            ]
+            accurate_error_1_to_box = np.abs(
+                (
+                    arm_run_decoder_spikes_1_to_box["real_pos"]
+                    - (arm_run_decoder_spikes_1_to_box["post_max"] + 4)
+                )
+            )
 
-                    # want to only use beginning and end times at the well, can use average of next to last position
-                    # print(arm_run_decoder[arm_run_decoder['real_pos']==23].shape[0]) - divide this by 2
-                    # ideally find this number for all 3 runs and average all
-                    # then if position == 24, only do calcuation on a subset of it
+            arm_run_decoder_spikes_1_to_2 = arm_run_decoder_spikes[
+                (arm_run_decoder_spikes["real_pos"] > 10)
+                & (arm_run_decoder_spikes["real_pos"] < 26)
+                & (arm_run_decoder_spikes["post_max"] > 26)
+            ]
 
-                    # select columns by index: df.iloc[:, 0:3]
-                    for i in np.arange(13, 25):
-                        posterior_fraction_array[i - 13, 0] = i
-                        new_dataframe = arm_run_decoder[
-                            arm_run_decoder["real_pos"] == i
-                        ]
-                        # print(new_dataframe.shape)
-                        # this was to calculate fraction posterior +/- 2 bins of real position
+            accurate_error_1_to_2 = np.abs(
+                (
+                    (arm_run_decoder_spikes_1_to_2["real_pos"] - 13)
+                    - (arm_run_decoder_spikes_1_to_2["post_max"] - 29) * -1
+                )
+            )
 
-                        # error distance (from post max to actual pos when spike > 0)
-                        if i == 24:
-                            new_dataframe_begin = new_dataframe[:bin_23_avg]
-                            new_dataframe_end = new_dataframe[-bin_23_avg:]
-                            # new_dataframe_2 = pd.concat(new_dataframe_begin,new_dataframe_end)
-                            new_dataframe_2 = new_dataframe_begin.append(
-                                new_dataframe_end, ignore_index=True
-                            )
-                            new_dataframe_3 = new_dataframe_2[
-                                new_dataframe_2["spike_count"] > 0
-                            ]
-                            # this is distance for any position bin
-                            posterior_position_dist = (
-                                np.average(
-                                    new_dataframe_3["real_pos"]
-                                    - new_dataframe_3["post_max"]
-                                )
-                                * 5
-                            )
-                            # this is to record where max is in other arm or box
-                            local_bins = new_dataframe_3[
-                                (new_dataframe_3["post_max"] > 10)
-                                & (new_dataframe_3["post_max"] < 26)
-                            ].shape[0]
-                            # only do this is shape > 0
-                            if new_dataframe_3.shape[0] > 0:
-                                posterior_fraction_array[i - 13, j + 4] = 1 - (
-                                    local_bins / new_dataframe_3.shape[0]
-                                )
-                                posterior_fraction_array[
-                                    i - 13, j + 1
-                                ] = new_dataframe_3.shape[0]
-                                # posterior distance
-                                # posterior_fraction_array[i-13,j+4,session] = posterior_position_dist
+            arm_run_decoder_spikes_1_to_1 = arm_run_decoder_spikes[
+                (arm_run_decoder_spikes["real_pos"] > 10)
+                & (arm_run_decoder_spikes["real_pos"] < 26)
+                & (arm_run_decoder_spikes["post_max"] > 10)
+                & (arm_run_decoder_spikes["post_max"] < 26)
+            ]
+            accurate_error_1_to_1 = np.abs(
+                (
+                    arm_run_decoder_spikes_1_to_1["real_pos"]
+                    - (arm_run_decoder_spikes_1_to_1["post_max"] + 0)
+                )
+            )
 
-                            # check by plotting position
-                            # plt.figure(figsize=(8,3))
-                            # plt.scatter(arm_run_decoder['bin_timestamp'].values,arm_run_decoder['real_pos'].values,s=1,color='black')
-                            # plt.scatter(new_dataframe_2['bin_timestamp'].values,new_dataframe_2['real_pos'].values,s=1,color='red')
+            ## ARM 2
+            arm_run_decoder_spikes_2_to_box = arm_run_decoder_spikes[
+                (arm_run_decoder_spikes["real_pos"] > 26)
+                & (arm_run_decoder_spikes["post_max"] < 10)
+            ]
+            accurate_error_2_to_box = np.abs(
+                (
+                    arm_run_decoder_spikes_2_to_box["real_pos"]
+                    - (arm_run_decoder_spikes_2_to_box["post_max"] + 4 + 16)
+                )
+            )
 
-                        else:
-                            new_dataframe_3 = new_dataframe[
-                                new_dataframe["spike_count"] > 0
-                            ]
-                            # for +/- 2 position bins: 36,41
-                            posterior_position_dist = (
-                                np.average(
-                                    new_dataframe_3["real_pos"]
-                                    - new_dataframe_3["post_max"]
-                                )
-                                * 5
-                            )
-                            # print('position',i,'posterior fraction',posterior_fraction_position)
-                            posterior_fraction_array[
-                                i - 13, j + 1
-                            ] = new_dataframe_3.shape[0]
-                            # posterior distance
-                            # posterior_fraction_array[i-13,j+4,session] = posterior_position_dist
-                            local_bins = new_dataframe_3[
-                                (new_dataframe_3["post_max"] > 10)
-                                & (new_dataframe_3["post_max"] < 26)
-                            ].shape[0]
-                            # only do this is shape > 0
-                            if new_dataframe_3.shape[0] > 0:
-                                posterior_fraction_array[i - 13, j + 4] = 1 - (
-                                    local_bins / new_dataframe_3.shape[0]
-                                )
+            arm_run_decoder_spikes_2_to_2 = arm_run_decoder_spikes[
+                (arm_run_decoder_spikes["real_pos"] > 26)
+                & (arm_run_decoder_spikes["post_max"] > 26)
+            ]
+            accurate_error_2_to_2 = np.abs(
+                (
+                    arm_run_decoder_spikes_2_to_2["real_pos"]
+                    - (arm_run_decoder_spikes_2_to_2["post_max"] + 0)
+                )
+            )
 
-                # arm 2
-                for j in np.arange(number_of_runs):
-                    arm_run_decoder = decoder_data[
-                        (
-                            decoder_data["bin_timestamp"]
-                            > arm2_last_three["start"].values[j]
-                        )
-                        & (
-                            decoder_data["bin_timestamp"]
-                            < arm2_last_three["end"].values[j]
-                        )
-                        & (decoder_data["velocity"] > velocity_filter)
-                    ]
-                    arm_run_decoder["post_max"] = (
-                        arm_run_decoder.iloc[:, 27:68]
-                        .idxmax(axis=1)
-                        .str.slice(1, 3, 1)
-                        .astype("int16")
-                    )
+            arm_run_decoder_spikes_2_to_1 = arm_run_decoder_spikes[
+                (arm_run_decoder_spikes["real_pos"] > 26)
+                & (arm_run_decoder_spikes["post_max"] > 10)
+                & (arm_run_decoder_spikes["post_max"] < 26)
+            ]
+            accurate_error_2_to_1 = np.abs(
+                (
+                    (arm_run_decoder_spikes_2_to_1["real_pos"] - 29)
+                    - (arm_run_decoder_spikes_2_to_1["post_max"] - 13) * -1
+                )
+            )
 
-                    # select columns by index: df.iloc[:, 0:3]
-                    for i in np.arange(29, 41):
-                        posterior_fraction_array[i - 16, 0] = i
-                        new_dataframe = arm_run_decoder[
-                            arm_run_decoder["real_pos"] == i
-                        ]
-                        # print(i,new_dataframe.shape)
-                        posterior_fraction_array[i - 16, j + 1] = new_dataframe.shape[0]
+            ## BOX
+            arm_run_decoder_spikes_box_to_2 = arm_run_decoder_spikes[
+                (arm_run_decoder_spikes["real_pos"] < 10)
+                & (arm_run_decoder_spikes["post_max"] > 26)
+            ]
+            accurate_error_box_to_2 = np.abs(
+                (
+                    (arm_run_decoder_spikes_box_to_2["real_pos"] + 4 + 16)
+                    - (arm_run_decoder_spikes_box_to_2["post_max"])
+                )
+            )
 
-                        # distance from position to posterior max
-                        # need to do update below
-                        if i == 39:
-                            new_dataframe_3 = new_dataframe[
-                                new_dataframe["spike_count"] > 0
-                            ]
-                            # for +/- 2 position bins: 36,41
-                            # here 5 is cm per position bin
-                            posterior_position_dist = (
-                                np.average(
-                                    new_dataframe_3["real_pos"]
-                                    - new_dataframe_3["post_max"]
-                                )
-                                * 5
-                            )
-                            # print('position',i,'posterior fraction',posterior_fraction_position)
-                            posterior_fraction_array[
-                                i - 16, j + 1
-                            ] = new_dataframe_3.shape[0]
-                            # posterior distance
-                            # posterior_fraction_array[i-16,j+4,session] = posterior_position_dist
-                            local_bins = new_dataframe_3[
-                                (new_dataframe_3["post_max"] > 26)
-                                & (new_dataframe_3["post_max"] < 41)
-                            ].shape[0]
-                            # only do this is shape > 0
-                            if new_dataframe_3.shape[0] > 0:
-                                posterior_fraction_array[i - 16, j + 4] = 1 - (
-                                    local_bins / new_dataframe_3.shape[0]
-                                )
+            arm_run_decoder_spikes_box_to_box = arm_run_decoder_spikes[
+                (arm_run_decoder_spikes["real_pos"] < 10)
+                & (arm_run_decoder_spikes["post_max"] < 10)
+            ]
+            accurate_error_box_to_box = np.abs(
+                (
+                    arm_run_decoder_spikes_box_to_box["real_pos"]
+                    - (arm_run_decoder_spikes_box_to_box["post_max"] + 0)
+                )
+            )
 
-                        elif i == 40:
-                            new_dataframe_begin = new_dataframe[:bin_39_avg]
-                            new_dataframe_end = new_dataframe[-bin_39_avg:]
-                            # new_dataframe_2 = pd.concat(new_dataframe_begin,new_dataframe_end)
-                            new_dataframe_2 = new_dataframe_begin.append(
-                                new_dataframe_end, ignore_index=True
-                            )
-                            new_dataframe_3 = new_dataframe_2[
-                                new_dataframe_2["spike_count"] > 0
-                            ]
-                            posterior_position_dist = (
-                                np.average(
-                                    new_dataframe_3["real_pos"]
-                                    - new_dataframe_3["post_max"]
-                                )
-                                * 5
-                            )
-                            posterior_fraction_array[
-                                i - 16, j + 1
-                            ] = new_dataframe_3.shape[0]
-                            # postior distance
-                            # posterior_fraction_array[i-16,j+4,session] = posterior_position_dist
-                            local_bins = new_dataframe_3[
-                                (new_dataframe_3["post_max"] > 26)
-                                & (new_dataframe_3["post_max"] < 41)
-                            ].shape[0]
-                            # only do this is shape > 0
-                            if new_dataframe_3.shape[0] > 0:
-                                posterior_fraction_array[i - 16, j + 4] = 1 - (
-                                    local_bins / new_dataframe_3.shape[0]
-                                )
+            arm_run_decoder_spikes_box_to_1 = arm_run_decoder_spikes[
+                (arm_run_decoder_spikes["real_pos"] < 10)
+                & (arm_run_decoder_spikes["post_max"] > 10)
+                & (arm_run_decoder_spikes["post_max"] < 26)
+            ]
+            accurate_error_box_to_1 = np.abs(
+                (
+                    (arm_run_decoder_spikes_box_to_1["real_pos"] + 4)
+                    - (arm_run_decoder_spikes_box_to_1["post_max"])
+                )
+            )
 
-                            # check by plotting position
-                            # plt.figure(figsize=(8,3))
-                            # plt.scatter(arm_run_decoder['bin_timestamp'].values,arm_run_decoder['real_pos'].values,s=1,color='black')
-                            # plt.scatter(new_dataframe_2['bin_timestamp'].values,new_dataframe_2['real_pos'].values,s=1,color='red')
+            # combine all errors
+            all_decoding_error = pd.concat(
+                [
+                    accurate_error_1_to_box * 5,
+                    accurate_error_1_to_2 * 5,
+                    accurate_error_1_to_1 * 5,
+                    accurate_error_2_to_box * 5,
+                    accurate_error_2_to_2 * 5,
+                    accurate_error_2_to_1 * 5,
+                    accurate_error_box_to_box * 5,
+                    accurate_error_box_to_2 * 5,
+                    accurate_error_box_to_1 * 5,
+                ]
+            )
+            print(all_decoding_error.shape)
 
-                        else:
-                            new_dataframe_3 = new_dataframe[
-                                new_dataframe["spike_count"] > 0
-                            ]
-                            # for +/- 2 position bins: 36,41
-                            posterior_position_dist = (
-                                np.average(
-                                    new_dataframe_3["real_pos"]
-                                    - new_dataframe_3["post_max"]
-                                )
-                                * 5
-                            )
-                            # print('position',i,'posterior fraction',posterior_fraction_position)
-                            posterior_fraction_array[
-                                i - 16, j + 1
-                            ] = new_dataframe_3.shape[0]
-                            # posterior distance
-                            # posterior_fraction_array[i-16,j+4,session] = posterior_position_dist
-                            local_bins = new_dataframe_3[
-                                (new_dataframe_3["post_max"] > 26)
-                                & (new_dataframe_3["post_max"] < 41)
-                            ].shape[0]
-                            # only do this is shape > 0
-                            if new_dataframe_3.shape[0] > 0:
-                                posterior_fraction_array[i - 16, j + 4] = 1 - (
-                                    local_bins / new_dataframe_3.shape[0]
-                                )
-
-                        # print('position',i,'posterior fraction',posterior_fraction_position)
-                        # posterior_fraction_array[i-16,j+4,session] = posterior_fraction_position
-
-        key["error_table"] = posterior_fraction_array
+        key["error_table"] = np.array(all_decoding_error)
         self.insert1(key)

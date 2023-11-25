@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import sys
 
 from spyglass.common import IntervalPositionInfo, IntervalList, StateScriptFile, DIOEvents, SampleCount
-from spyglass.common.dj_helper_fn import fetch_nwb
+from spyglass.utils.dj_helper_fn import fetch_nwb
 
 import pprint
 
