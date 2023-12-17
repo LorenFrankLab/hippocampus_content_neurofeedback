@@ -105,6 +105,10 @@ class RewardClusterList(dj.Computed):
         reward_time = reward_cluster_parameters["reward_time"]
         FR_increase = reward_cluster_parameters["FR_increase"]
         min_trial_frac = reward_cluster_parameters["min_trial_frac"]
+        no_enrich_clusters = reward_cluster_parameters['no_enrich_clusters']
+
+        if no_enrich_clusters == 1:
+            print('cluster list without FR increase')
 
         # this seems to work now - should work for any session
 
@@ -119,6 +123,7 @@ class RewardClusterList(dj.Computed):
 
         reward_ptsh_histogram_dict = {}
         new_reward_cell_dict = {}
+        reward_cell_dict_v2 = {}
 
         FR_change_list_content = []
         FR_change_list_head = []
@@ -129,6 +134,7 @@ class RewardClusterList(dj.Computed):
 
         reward_ptsh_histogram_dict[key["nwb_file_name"]] = {}
         new_reward_cell_dict[key["nwb_file_name"]] = {}
+        reward_cell_dict_v2[key["nwb_file_name"]] = {}
 
         # NOTE: for ginny tet 34 and 35 dont work because they have a dead channel included
         # for session in ['run2_v_run3']:
@@ -210,6 +216,10 @@ class RewardClusterList(dj.Computed):
             new_reward_cell_dict[key["nwb_file_name"]][sort_interval][first_sess] = {}
             new_reward_cell_dict[key["nwb_file_name"]][sort_interval][second_sess] = {}
             # new_reward_cell_dict[key["nwb_file_name"]][key[sort_interval_name]]["run3"] = {}
+
+            reward_cell_dict_v2[key["nwb_file_name"]][sort_interval] = {}
+            reward_cell_dict_v2[key["nwb_file_name"]][sort_interval][first_sess] = {}
+            reward_cell_dict_v2[key["nwb_file_name"]][sort_interval][second_sess] = {}
 
             session_counter += 1
 
@@ -458,6 +468,12 @@ class RewardClusterList(dj.Computed):
                             whole_firing_rate = (
                                 session_spikes.shape[0] / session_duration
                             )
+
+                            if single_session == first_sess:
+                                all_reward_spikes = np.zeros((reward_times[0].shape[0],))
+                            elif single_session == second_sess:
+                                all_reward_spikes = np.zeros((reward_times_2nd[0].shape[0],))
+                            
                             # NOTE: for content vs head direction, we need to compare all clusters at reward times
 
                             # need this try because of the issue where some curation id 3 tets have no clusters
@@ -486,9 +502,13 @@ class RewardClusterList(dj.Computed):
                                         and session_spikes.shape[0] > min_spikes
                                     ):
                                         # print("good cluster")
+                                        # want to try to include more clusters
+                                        # save total spikes 100 msec before reward
+                                        # save spikes per trial
+
                                         # make a histogram with 10msec bins then aerage histogram over 75 rewards
                                         reward_time_counter = 0
-
+                                        
                                         if single_session == first_sess:
                                             session_reward_times = reward_times[
                                                 0
@@ -497,6 +517,7 @@ class RewardClusterList(dj.Computed):
                                             session_reward_times = reward_times_2nd[
                                                 0
                                             ].copy()
+                                        cluster_reward_spikes = np.zeros((session_reward_times.shape[0],))
 
                                         reward_spike_count = 0
                                         for time_of_reward in session_reward_times:
@@ -523,6 +544,9 @@ class RewardClusterList(dj.Computed):
                                                 )
                                                 & (all_spikes < time_of_reward)
                                             ].shape[0]
+                                            # use reward_time_counter?
+                                            cluster_reward_spikes[reward_time_counter] = session_spikes[(session_spikes>(time_of_reward - reward_time/100))
+                                                             & (session_spikes<time_of_reward)].shape[0]
 
                                             firing_hist = np.histogram(
                                                 nearby_spikes,
@@ -542,6 +566,7 @@ class RewardClusterList(dj.Computed):
                                                     )
                                                 )
                                             reward_time_counter += 1
+                                        all_reward_spikes += cluster_reward_spikes
 
                                         if single_session == first_sess:
                                             # count next session reward spikes
@@ -646,6 +671,29 @@ class RewardClusterList(dj.Computed):
                                             FR_before_reward / FR_baseline
                                         )
 
+                                        # save before FR check
+                                        if (single_session == first_sess and session == "run1_v_run2"):
+                                            reward_cell_dict_v2[
+                                                key["nwb_file_name"]][sort_interval][first_sess][str(
+                                                    curation_id)+ "_"+ str(tetrode)+ "_"+ str(cluster)
+                                                ] = all_reward_spikes
+                                        elif (single_session == first_sess and session == "run2_v_run3"):
+                                            reward_cell_dict_v2[
+                                                key["nwb_file_name"]][sort_interval][first_sess][str(
+                                                    curation_id)+ "_"+ str(tetrode)+ "_"+ str(cluster)
+                                                ] = all_reward_spikes
+                                        elif (single_session == second_sess and session == "run1_v_run2"):
+                                            reward_cell_dict_v2[
+                                                key["nwb_file_name"]][sort_interval][second_sess][str(
+                                                    curation_id)+ "_"+ str(tetrode)+ "_"+ str(cluster)
+                                                ] = all_reward_spikes
+                                        elif (single_session == second_sess and session == "run2_v_run3"):
+                                            reward_cell_dict_v2[
+                                                key["nwb_file_name"]][sort_interval][second_sess][str(
+                                                    curation_id)+ "_"+ str(tetrode)+ "_"+ str(cluster)
+                                                ] = all_reward_spikes
+                                        #print(tetrode,all_reward_spikes)
+                                        
                                         # original: FR_increase >4 and max(actual_smooth)>0.05
                                         if (
                                             FR_increase_cluster > FR_increase
@@ -744,6 +792,11 @@ class RewardClusterList(dj.Computed):
                                                     reward_times_2nd[0].shape[0],
                                                     task2_center_spikes,
                                                 ]
+                                                # for no FR increase
+                                                #reward_cell_dict_v2[key["nwb_file_name"]][sort_interval]
+                                                #[first_sess][str(curation_id)+ "_"+ str(tetrode)+ "_"+ str(cluster)
+                                                #] = all_reward_spikes
+                                                
                                             elif (
                                                 single_session == first_sess
                                                 and session == "run2_v_run3"
@@ -765,6 +818,10 @@ class RewardClusterList(dj.Computed):
                                                     reward_times_2nd[0].shape[0],
                                                     task2_center_spikes,
                                                 ]
+                                                # for no FR increase
+                                                #reward_cell_dict_v2[key["nwb_file_name"]][sort_interval]
+                                                #[first_sess][str(curation_id)+ "_"+ str(tetrode)+ "_"+ str(cluster)
+                                                #] = all_reward_spikes
                                             elif (
                                                 single_session == second_sess
                                                 and session == "run2_v_run3"
@@ -786,6 +843,10 @@ class RewardClusterList(dj.Computed):
                                                     reward_times_2nd[0].shape[0],
                                                     task2_center_spikes,
                                                 ]
+                                                # for no FR increase
+                                                #reward_cell_dict_v2[key["nwb_file_name"]][sort_interval]
+                                                #[second_sess][str(curation_id)+ "_"+ str(tetrode)+ "_"+ str(cluster)
+                                                #] = all_reward_spikes
                                             elif (
                                                 single_session == second_sess
                                                 and session == "run1_v_run2"
@@ -807,7 +868,10 @@ class RewardClusterList(dj.Computed):
                                                     reward_times_2nd[0].shape[0],
                                                     task2_center_spikes,
                                                 ]
-
+                                                # for no FR increase
+                                                #reward_cell_dict_v2[key["nwb_file_name"]][sort_interval]
+                                                #[second_sess][str(curation_id)+ "_"+ str(tetrode)+ "_"+ str(cluster)
+                                                #] = all_reward_spikes
                                             # try to plot the raster - looks good
                                             # note this counts all spikes in the plot window
                                             # trial_count = session_reward_times.shape[0]
@@ -829,11 +893,38 @@ class RewardClusterList(dj.Computed):
                                     print(cluster_label)
                             except IndexError as e:
                                 print("curation id 3, no units on tetrode", tetrode)
+                        #if single_session == first_sess:
+                        #    first_sess_reward_spikes = all_reward_spikes.copy()
+                        #    print(first_sess_reward_spikes)
+                        #elif single_session == second_sess:
+                        #    second_sess_reward_spikes = all_reward_spikes.copy()
+                        
                     else:
                         print("no units on tetrode", tetrode)
 
+                #if (single_session == first_sess and session == "run1_v_run2"):
+                #    reward_cell_dict_v2[
+                #        key["nwb_file_name"]][sort_interval][first_sess] = first_sess_reward_spikes
+                #elif (single_session == first_sess and session == "run2_v_run3"):
+                #    reward_cell_dict_v2[
+                #        key["nwb_file_name"]][sort_interval][first_sess] = first_sess_reward_spikes
+                #elif (single_session == second_sess and session == "run1_v_run2"):
+                #    reward_cell_dict_v2[
+                #        key["nwb_file_name"]][sort_interval][second_sess] = second_sess_reward_spikes
+                #elif (single_session == second_sess and session == "run2_v_run3"):
+                #    reward_cell_dict_v2[
+                #        key["nwb_file_name"]][sort_interval][second_sess] = second_sess_reward_spikes
+                
+                #reward_cell_dict_v2 = {}
+                #reward_cell_dict_v2['entry'] = [first_sess_reward_spikes,
+                #                                second_sess_reward_spikes]
         # NOTE: item to save is the dictionary
         # NOTE: need to add curation id to each dictionary entry
         key["reward_cluster_ptsh"] = reward_ptsh_histogram_dict
-        key["reward_cluster_dict"] = new_reward_cell_dict
+        #key["reward_cluster_dict"] = new_reward_cell_dict
+        # reward clusters with no restrictions
+        if no_enrich_clusters == 1:
+            key["reward_cluster_dict"] = reward_cell_dict_v2
+        else:
+            key["reward_cluster_dict"] = new_reward_cell_dict
         self.insert1(key)

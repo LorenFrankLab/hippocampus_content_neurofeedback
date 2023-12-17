@@ -7,8 +7,12 @@ import sys
 
 from hippocampus_content_neurofeedback.mcoulter_reward_cluster_list import RewardClusterList
 from hippocampus_content_neurofeedback.mcoulter_realtime_filename import RealtimeFilename
+from hippocampus_content_neurofeedback.mcoulter_arm_end_clusters import ArmEndClusters
 from spyglass.decoding import SortedSpikesIndicator
+from spyglass.common import IntervalList
+from spyglass.spikesorting import Waveforms, CuratedSpikeSorting
 from spyglass.mcoulter_statescript_rewards import (StatescriptReward)
+
 import pprint
 import warnings
 # import matplotlib.pyplot as plt
@@ -32,72 +36,73 @@ warnings.simplefilter("ignore", category=ResourceWarning)
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
-schema = dj.schema("mcoulter_reward_assemblies")
+schema = dj.schema("mcoulter_arm_end_assemblies")
 
 
 # parameters
 @schema
-class CellAssemblyParameters(dj.Manual):
+class ArmEndCellAssemblyParameters(dj.Manual):
     definition = """
-    assembly_param_name : varchar(500)
+    arm_end_assembly_param_name : varchar(500)
     ---
-    assembly_parameters : blob
+    arm_end_assembly_parameters : blob
     """
 
     # can include description above
     # description : varchar(500)
 
     def insert_default(self):
-        assembly_parameters = {}
-        assembly_parameters["cluster_type"] = 'new_100ms'
-        assembly_parameters["sum_bins"] = 5
-        assembly_parameters["nshu"] = 100
-        assembly_parameters["percentile"] = 99.5
+        arm_end_assembly_parameters = {}
+        arm_end_assembly_parameters["sum_bins"] = 5
+        arm_end_assembly_parameters["nshu"] = 100
+        arm_end_assembly_parameters["percentile"] = 99.5
+        arm_end_assembly_parameters["min_spikes"] = 100
+        arm_end_assembly_parameters["interneuron_FR"] = 7
 
         self.insert1(
-            ["default", assembly_parameters], skip_duplicates=True
+            ["default", arm_end_assembly_parameters], skip_duplicates=True
         )
 
 
 # i dont think we need samplecount or statescriptfile in this list
 # select parameters and cluster
 @schema
-class CellAssemblySelection(dj.Manual):
+class ArmEndCellAssemblySelection(dj.Manual):
     definition = """
     -> RealtimeFilename
-    -> CellAssemblyParameters
+    -> ArmEndCellAssemblyParameters
     ---
     """
 
 
 # this is the computed table - basically it has the results of the analysis
 @schema
-class CellAssembly(dj.Computed):
+class ArmEndCellAssembly(dj.Computed):
     definition = """
-    -> CellAssemblySelection
+    -> ArmEndCellAssemblySelection
     ---
+    input_cluster_count : double
     assembly_dictionary : mediumblob
 
     """
 
     def make(self, key):
-        print(f"Computing cell asssembly (no enrich) for: {key}")
+        print(f"Computing cell asssembly for: {key}")
 
         assembly_parameters = (
-            CellAssemblyParameters
+            ArmEndCellAssemblyParameters
             & {
-                "assembly_param_name": key[
-                    "assembly_param_name"
+                "arm_end_assembly_param_name": key[
+                    "arm_end_assembly_param_name"
                 ]
             }
         ).fetch()[0][1]
 
-        cluster_type = assembly_parameters["cluster_type"]
         sum_bins = assembly_parameters["sum_bins"]
         nshu = assembly_parameters["nshu"]
         percentile = assembly_parameters["percentile"]
-        no_enrich = assembly_parameters['no_enrich']
-        spike_cutoff = assembly_parameters['spike_cutoff']
+        min_spikes = assembly_parameters["min_spikes"]
+        interneuron_FR = assembly_parameters["interneuron_FR"]
 
         #__author__ = "Vítor Lopes dos Santos"
         #__version__ = "2019.1"
@@ -328,218 +333,229 @@ class CellAssembly(dj.Computed):
                 else:
                         return simmat
 
+        # need to insert a copy of target arm dictionaries
+        # target dict for all days
+        ron_all_dict = {'ron20210811_.nwb':2,'ron20210812_.nwb':2,
+                        'ron20210813_.nwb':1,'ron20210814_.nwb':1,
+                        'ron20210816_.nwb':2,'ron20210817_.nwb':2,'ron20210818_.nwb':2,
+                        'ron20210819_.nwb':1,'ron20210820_.nwb':1,'ron20210821_.nwb':1,
+                        'ron20210822_.nwb':2,'ron20210823_.nwb':2,'ron20210824_.nwb':2,
+                        'ron20210825_.nwb':1,'ron20210826_.nwb':1,'ron20210827_.nwb':1,
+                        'ron20210828_.nwb':2,'ron20210829_.nwb':2,'ron20210830_.nwb':2,
+                        'ron20210831_.nwb':1,'ron20210901_.nwb':1,'ron20210902_.nwb':1} 
 
-        # new assembly dictionary
+        tonks_all_dict = {'tonks20211023_.nwb': 1,'tonks20211024_.nwb': 1,
+                        'tonks20211025_.nwb': 2,'tonks20211026_.nwb': 2,
+        'tonks20211027_.nwb': 1,'tonks20211028_.nwb': 1,'tonks20211029_.nwb': 1,
+        'tonks20211030_.nwb': 2,'tonks20211031_.nwb': 2,'tonks20211101_.nwb': 2,
+        'tonks20211102_.nwb': 1,'tonks20211103_.nwb': 1,'tonks20211104_.nwb': 1,
+        'tonks20211105_.nwb': 2,'tonks20211106_.nwb': 2,'tonks20211107_.nwb': 2,
+        'tonks20211108_.nwb': 1,'tonks20211109_.nwb': 1,'tonks20211110_.nwb': 1,
+        'tonks20211111_.nwb': 2,'tonks20211112_.nwb': 2,}
+                        
+        ginny_all_dict = {'ginny20211023_.nwb': 1,'ginny20211024_.nwb': 1,
+                        'ginny20211025_.nwb': 2,'ginny20211026_.nwb': 2,
+        'ginny20211027_.nwb': 1,'ginny20211028_.nwb': 1,'ginny20211029_.nwb': 1,
+        'ginny20211030_.nwb': 2,'ginny20211031_.nwb': 2,'ginny20211101_.nwb': 2,
+        'ginny20211102_.nwb': 1,'ginny20211103_.nwb': 1,'ginny20211104_.nwb': 1,
+        'ginny20211105_.nwb': 2,'ginny20211106_.nwb': 2,'ginny20211107_.nwb': 2,
+        'ginny20211108_.nwb': 1,'ginny20211109_.nwb': 1,'ginny20211110_.nwb': 1,
+        'ginny20211111_.nwb': 2,'ginny20211112_.nwb': 2,'ginny20211113_.nwb': 2,}
+
+        molly_all_dict = {'molly20220314_.nwb': 1,'molly20220315_.nwb': 1,
+                        'molly20220316_.nwb': 2,'molly20220317_.nwb': 2,
+        'molly20220318_.nwb': 1,'molly20220319_.nwb': 1,'molly20220320_.nwb': 1,
+        'molly20220321_.nwb': 2,'molly20220322_.nwb': 2,'molly20220323_.nwb': 2,
+        'molly20220324_.nwb': 1,'molly20220325_.nwb': 1,'molly20220326_.nwb': 1,
+        'molly20220327_.nwb': 2,'molly20220328_.nwb': 2,'molly20220329_.nwb': 2,
+        'molly20220330_.nwb': 1,'molly20220331_.nwb': 1,'molly20220401_.nwb': 1,
+        'molly20220402_.nwb': 2,'molly20220403_.nwb': 2,'molly20220404_.nwb': 2,}
+
+        arthur_all_dict = {'arthur20220314_.nwb': 1,'arthur20220315_.nwb': 1,
+                                'arthur20220316_.nwb': 2,'arthur20220317_.nwb': 2,
+        'arthur20220318_.nwb': 1,'arthur20220319_.nwb': 1,'arthur20220320_.nwb': 1,
+        'arthur20220321_.nwb': 2,'arthur20220322_.nwb': 2,'arthur20220323_.nwb': 2,
+        'arthur20220324_.nwb': 1,'arthur20220325_.nwb': 1,'arthur20220326_.nwb': 1,
+        'arthur20220327_.nwb': 2,'arthur20220328_.nwb': 2,'arthur20220329_.nwb': 2,
+        'arthur20220330_.nwb': 1,'arthur20220331_.nwb': 1,'arthur20220401_.nwb': 1,
+        'arthur20220402_.nwb': 2,'arthur20220403_.nwb': 2,'arthur20220404_.nwb': 2,}
+
+        pippin_all_dict = {'pippin20210518_.nwb':1,'pippin20210519_.nwb':1,
+                                'pippin20210520_.nwb':2,'pippin20210521_.nwb':2,
+        'pippin20210523_.nwb':1,'pippin20210524_.nwb':1,'pippin20210525_.nwb':1,
+        'pippin20210526_.nwb':2,'pippin20210527_.nwb':2,'pippin20210528_.nwb':2}
+        
+        #  empty variables
         assembly_dictionary = {}
+        filtered_arm_end_clusters = []
 
-        last_pos_interval = []
-        # only find assemblies for high reward sessions
-        rat_name = key["nwb_file_name"].split("2")[0]
+        # arm end clusters: get filtered list
+        #interneuron_FR = 7
+        #min_spikes = 100
 
-        # how to get realtime filename - not needed
-        if rat_name == 'ron':
-           path_add = "/cumulus/mcoulter/george/realtime_rec_merged/"
-        elif rat_name == 'tonks':
-           path_add = "/cumulus/mcoulter/tonks/realtime_merged/"
-        elif rat_name == 'arthur':
-           path_add = "/cumulus/mcoulter/molly/realtime_rec_merged/"
-        elif rat_name == 'molly':
-           path_add = "/cumulus/mcoulter/molly/realtime_rec_merged/"
-        elif rat_name == 'ginny':
-           path_add = "/cumulus/mcoulter/tonks/realtime_merged/"
-        elif rat_name == 'pippin':
-           path_add = "/cumulus/mcoulter/pippin/realtime_rec_merged_end_all/"
+        if len((ArmEndClusters & {'realtime_filename':key['realtime_filename']}).fetch('cluster_id')[0]) > 0:
+        
+                print(key['nwb_file_name'],len((ArmEndClusters & {'realtime_filename':key['realtime_filename']}).fetch('cluster_id')[0]))
+                cluster_id_list = (ArmEndClusters & {'realtime_filename':key['realtime_filename']}).fetch('cluster_id')[0]
+                arm1_spikes = (ArmEndClusters & {'realtime_filename':key['realtime_filename']}).fetch('arm1_end_spikes')[0]   
+                arm2_spikes = (ArmEndClusters & {'realtime_filename':key['realtime_filename']}).fetch('arm2_end_spikes')[0]  
 
-        #path_add = lfp_posterior_sum_parameters["file_directory"]
+                # specify dictionary 
+                rat_name = key["nwb_file_name"].split("2")[0]
 
-        # get pos name
-        pos_interval_list = (
-            StatescriptReward & {"nwb_file_name": key["nwb_file_name"]}
-        ).fetch("interval_list_name")
-        realtime_interval_list = (
-            RealtimeFilename & {"nwb_file_name": key["nwb_file_name"]}
-        ).fetch("interval_list_name")
-        print(realtime_interval_list)
+                # how to get realtime filename - not needed
+                if rat_name == 'ron':
+                        dict_name = ron_all_dict
+                elif rat_name == 'tonks':
+                        dict_name = tonks_all_dict
+                elif rat_name == 'arthur':
+                        dict_name = arthur_all_dict
+                elif rat_name == 'molly':
+                        dict_name = molly_all_dict
+                elif rat_name == 'ginny':
+                        dict_name = ginny_all_dict
+                elif rat_name == 'pippin':
+                        dict_name = pippin_all_dict
 
-        # exception for molly 3-24
-        if (
-            key["nwb_file_name"] == "molly20220324_.nwb"
-            and key["interval_list_name"] == realtime_interval_list[1]
-        ):
-            pos_name = pos_interval_list[1]
+                target_arm = dict_name[key['nwb_file_name']]
 
-        elif key["interval_list_name"] == realtime_interval_list[0]:
-            pos_name = pos_interval_list[0]
-        elif key["interval_list_name"] == realtime_interval_list[1]:
-            pos_name = pos_interval_list[1]
-        elif key["interval_list_name"] == realtime_interval_list[2]:
-            pos_name = pos_interval_list[2]
-        print(key["nwb_file_name"], pos_name, key["interval_list_name"])
+                filtered_arm_end_clusters = []
+                
+                # arm 1
+                if target_arm == 1:
+                        cluster_id_list_new = cluster_id_list[arm1_spikes>30]
+                # arm 2
+                elif target_arm == 2:
+                        cluster_id_list_new = cluster_id_list[arm2_spikes>30]
+                print('clusters in:',cluster_id_list_new.shape[0])
+                
+                reward_cluster_out_array = np.zeros((cluster_id_list_new.shape[0],2))
+                for i in np.arange(cluster_id_list_new.shape[0]):
+                        reward_cluster_out_array[i,0] = np.int(cluster_id_list_new[i].split('_')[0])
+                        reward_cluster_out_array[i,1] = np.int(cluster_id_list_new[i].split('_')[1])
 
-        # set sort interval based on pos_name - this is only for ginny and tonks
-        if pos_name == 'pos 6 valid times' and key["nwb_file_name"] == 'tonks20211027_.nwb':
-            sort_interval = 'r2_r4'  
-        elif pos_name == 'pos 6 valid times' and key["nwb_file_name"] == 'tonks20211105_.nwb':
-            sort_interval = 'r2_r4'  
-        elif pos_name == 'pos 1 valid times':
-            sort_interval = 'r1_r2'
-        elif pos_name == 'pos 3 valid times':
-            sort_interval = 'r1_r2'
-        elif pos_name == 'pos 5 valid times':
-            sort_interval = 'r2_r3'
-        elif pos_name == 'pos 2 valid times':
-            sort_interval = 'r2_r3'
-        elif pos_name == 'pos 4 valid times':
-            sort_interval = 'r2_r3'
-        elif pos_name == 'pos 6 valid times':
-            sort_interval = 'r3_r4'
-          
-        else:
-            raise KeyError('mising pos name')
+                # start and end for each sesssion
+                start_time = (
+                IntervalList
+                & {"nwb_file_name": key["nwb_file_name"]}
+                & {"interval_list_name": key["interval_list_name"]}
+                ).fetch("valid_times")[0][0][0]
+                end_time = (
+                IntervalList
+                & {"nwb_file_name": key["nwb_file_name"]}
+                & {"interval_list_name": key["interval_list_name"]}
+                ).fetch("valid_times")[0][0][1]
+                session_duration = end_time - start_time
+                print('duration, mins:',session_duration/60)
+                
+                # replace this based on looking up sort intervals from waveforms
+                sort_intervals = np.unique(
+                (
+                        Waveforms
+                        & {"nwb_file_name": key["nwb_file_name"]}
+                        & {"waveform_params_name": "default_whitened"}
+                        & {'artifact_removed_interval_list_name LIKE "%100_prop%"'}
+                ).fetch("sort_interval_name")
+                )
+                print("sort intervals", sort_intervals)
 
-        # load real-time recording file
-        os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
-        hdf_file = path_add + key["realtime_filename"]
+                pos_name = 'pos '+str(np.int(key['interval_list_name'].split('_')[0])-1)+' valid times'
 
-        # print(f'Computing realtime posterior sum for: {key}')
+                all_pos = np.unique(
+                (
+                        StatescriptReward & {"nwb_file_name": key["nwb_file_name"]}
+                ).fetch("interval_list_name")
+                )
+                if pos_name == all_pos[0]:
+                        sort_interval = sort_intervals[0]
+                elif pos_name == all_pos[1]:
+                        sort_interval = sort_intervals[0]
+                elif pos_name == all_pos[2]:
+                        sort_interval = sort_intervals[1]
+        
+                # loop through all the clusters that have > 30 target spikes
+                for i in np.arange(reward_cluster_out_array.shape[0]):
+                        # need to define cluster and tetrode based on this array
+                        # need to figure out how to get sort_interval
+                        tetrode = np.int(reward_cluster_out_array[i,0])
+                        cluster = np.int(reward_cluster_out_array[i,1])
+                        
+                        cluster_spike_times = (
+                                CuratedSpikeSorting
+                                & {"nwb_file_name": key["nwb_file_name"]}
+                                & {"sort_interval_name": sort_interval}
+                                & {
+                                'artifact_removed_interval_list_name LIKE "%100_prop%"'
+                                }
+                                & {"sorter": "mountainsort4"}
+                                & {"curation_id": 1}
+                                & {"sort_group_id": tetrode}
+                                ).fetch_nwb()[0]["units"]["spike_times"][cluster]
 
-        # store = pd.HDFStore(hdf_file, mode='r')
 
-        decoder_data = pd.read_hdf(hdf_file, key="rec_4")
-        occupancy_data = pd.read_hdf(hdf_file, key="rec_7")
-        encoder_data = pd.read_hdf(hdf_file, key="rec_3")
-        # likelihood_data = pd.read_hdf(hdf_file,key='rec_6')
-        ##decoder_missed_spikes = store['rec_5']
-        ##ripple_data = store['rec_1']
-        ##stim_state = store['rec_10']
-        stim_lockout = pd.read_hdf(hdf_file, key="rec_11")
-        stim_message = pd.read_hdf(hdf_file, key="rec_12")
+                        session_spikes = cluster_spike_times[
+                                (cluster_spike_times > start_time)
+                                & (cluster_spike_times < end_time)
+                        ]
+                        
+                        whole_firing_rate = (session_spikes.shape[0] / session_duration)
 
-        print(hdf_file)
-        print(encoder_data.shape)
-        # print(encoder_data[encoder_data['encode_spike']==1].shape)
+                        if (whole_firing_rate < interneuron_FR
+                        and session_spikes.shape[0] > min_spikes ):
+                                # add cluster to list for assembly analysis
+                                filtered_arm_end_clusters.append([tetrode,cluster])
+                                #print(whole_firing_rate, session_spikes.shape[0],session_duration/60)
+                        
+                print('clusters out',len(filtered_arm_end_clusters))
 
-        # reward count - lockout removed
-        stim_message_diff = stim_message.copy()
-        stim_message_diff_reward = stim_message_diff[
-            (stim_message_diff["shortcut_message_sent"] == 1)
-        ]
-        stim_message_diff_reward["timestamp_diff"] = stim_message_diff_reward[
-            "bin_timestamp"
-        ].diff()
-        stim_message_diff_reward_2 = pd.concat(
-            [
-                stim_message_diff_reward[0:1],
-                stim_message_diff_reward[
-                    stim_message_diff_reward["timestamp_diff"] > 30000
-                ],
-            ]
-        )
-        print("rewards", stim_message_diff_reward_2.shape)
+                # new assembly dictionary
+                assembly_dictionary = {}
+                # this will use the 2nd half of the first pair to get the middle session
 
-        # only high reward sessions
-        if stim_message_diff_reward_2.shape[0] > 0:
-
-            try:
-                reward_cluster_dict = (RewardClusterList() & {'nwb_file_name':key['nwb_file_name']} & 
-                                    {'reward_cluster_list_param_name' : cluster_type}).fetch('reward_cluster_dict')  
-                assembly_dictionary[key['nwb_file_name']] = {}
-                assembly_dictionary[key['nwb_file_name']][sort_interval] = {}
-                assembly_dictionary[key['nwb_file_name']][sort_interval][pos_name] = {}
-
-                # sort_interval_list = []
-                # for item in reward_cluster_dict[0][key['nwb_file_name']].items():
-                #     #print(item[0])
-                #     sort_interval_list.append(item[0])
-
-                # for sort_interval in sort_interval_list:  
-                #     assembly_dictionary[key['nwb_file_name']][sort_interval] = {}
-                    
-                #     print(sort_interval)
-                #     pos_interval_list = []
-                    
-                #     for item in reward_cluster_dict[0][key['nwb_file_name']][sort_interval].items():
-                #         #print(item[0])
-                #         pos_interval_list.append(item[0])        
-
-                #     for pos_interval in pos_interval_list:
-                #         all_units = []
-                #         assembly_dictionary[key['nwb_file_name']][sort_interval][pos_interval] = {}
-                #         reward_cluster_out_list = []
-                #         print(pos_interval)
-                #         if pos_interval == last_pos_interval:
-                #             print('same interval, skip',last_pos_interval,pos_interval)
-                #         else:
-
-                # start here for doing 1 analysis per table entry
                 spike_only_dict = {}
                 cluster_counter = 0
                 unit_counter = 0
-                reward_cluster_out_list = []
-                all_units = []
 
-                # skip if no spikes
-                if len(reward_cluster_dict[0][key['nwb_file_name']][sort_interval][pos_name].items()) > 0:
-
-                    for item in reward_cluster_dict[0][key['nwb_file_name']][sort_interval][pos_name].items():
-                        if no_enrich == 1 and item[1].sum() > spike_cutoff:
-                            print('no enrich cluster',item[0].split('_')[1],item[0].split('_')[2],'spikes:',item[1].sum())
-                            reward_cluster_out_list.append([np.int(item[0].split('_')[1]),
-                                                            np.int(item[0].split('_')[2])])
-                            spike_only_dict[cluster_counter] = []
-                        elif no_enrich == 0:
-                            print('reward cluster',item[0].split('_')[1],item[0].split('_')[2])
-                            reward_cluster_out_list.append([np.int(item[0].split('_')[1]),
-                                                            np.int(item[0].split('_')[2])])
-                            #print('reward spikes',item[1][6])
-                            spike_only_dict[cluster_counter] = item[1][6]
-
+                for item in filtered_arm_end_clusters:
+                        #print('reward cluster',item[0],item[1])
+                        #reward_cluster_out_list.append([np.int(item[0].split('_')[1]),
+                        #                                np.int(item[0].split('_')[2])])
+                        #print('reward spikes',item[1][6])
+                        #spike_only_dict[cluster_counter] = item[1][6]
                         #print('spike count',len(spike_only_dict[cluster_counter]))
                         cluster_counter += 1
-                        if np.int(item[0].split('_')[1]) < 10 and np.int(item[0].split('_')[2]) < 10:
-                            column_name = str('000')+str(item[0].split('_')[1])+'_'+str('000')+str(item[0].split('_')[2])
-                        elif np.int(item[0].split('_')[1]) < 10:
-                            column_name = str('000')+str(item[0].split('_')[1])+'_'+str('00')+str(item[0].split('_')[2])
-                        elif np.int(item[0].split('_')[2]) < 10:
-                            column_name = str('00')+str(item[0].split('_')[1])+'_'+str('000')+str(item[0].split('_')[2])
+                        if np.int(item[0]) < 10 and np.int(item[1]) < 10:
+                                column_name = str('000')+str(item[0])+'_'+str('000')+str(item[1])
+                        elif np.int(item[0]) < 10:
+                                column_name = str('000')+str(item[0])+'_'+str('00')+str(item[1])
+                        elif np.int(item[1]) < 10:
+                                column_name = str('00')+str(item[0])+'_'+str('000')+str(item[1])
                         else:
-                            column_name = str('00')+str(item[0].split('_')[1])+'_'+str('00')+str(item[0].split('_')[2])
+                                column_name = str('00')+str(item[0])+'_'+str('00')+str(item[1])
                         #column_name_list.append(column_name)
                         
                         try:
-                            if no_enrich == 1 and item[1].sum() > spike_cutoff:
                                 tet_units = np.array((SortedSpikesIndicator & {'nwb_file_name' : key['nwb_file_name']} & 
-                                    {'sort_interval_name':sort_interval} &                
-                                    {'interval_list_name':pos_name} & {'sort_group_id':item[0].split('_')[1]} &
+                                        {'sort_interval_name':sort_interval} &                
+                                        {'interval_list_name':pos_name} & {'sort_group_id':item[0]} &
                                 {'artifact_removed_interval_list_name LIKE "%ampl_100_%"'}).fetch_dataframe()[column_name])
                                 #print(tet_units.shape)
                                 if unit_counter > 0:
-                                    all_units = np.vstack((all_units, tet_units))
+                                        all_units = np.vstack((all_units, tet_units))
                                 elif unit_counter == 0:
-                                    all_units = tet_units.copy()
+                                        all_units = tet_units.copy()
                                 unit_counter += 1
-                            elif no_enrich == 0:
-                                tet_units = np.array((SortedSpikesIndicator & {'nwb_file_name' : key['nwb_file_name']} & 
-                                    {'sort_interval_name':sort_interval} &                
-                                    {'interval_list_name':pos_name} & {'sort_group_id':item[0].split('_')[1]} &
-                                {'artifact_removed_interval_list_name LIKE "%ampl_100_%"'}).fetch_dataframe()[column_name])
-                                #print(tet_units.shape)
-                                if unit_counter > 0:
-                                    all_units = np.vstack((all_units, tet_units))
-                                elif unit_counter == 0:
-                                    all_units = tet_units.copy()
-                                unit_counter += 1                                          
                         except ValueError as e:
-                            print('no sorted spikes')
+                                print('no sorted spikes')
                         
-                    if len(all_units) > 0:
+                if len(all_units) > 0:
                         # find assemblies - code is below
                         # sum into 10 msec bins
                         #sum_bins = 5
                         max_index = (all_units.shape[1]//sum_bins)*sum_bins
                         all_units = all_units[:,:max_index]
                         binned_10ms = all_units[:,:].reshape(-1, np.int((all_units.shape[1])/sum_bins), sum_bins).sum(axis=2)
-                        print('number units',binned_10ms.shape,'bin size',sum_bins*2)
+                        print('number units',binned_10ms.shape)
 
                         #nshu = 1000 # defines number of controls to run 
                         #percentile = 99.5 # defines percentile for significance threshold
@@ -555,13 +571,11 @@ class CellAssembly(dj.Computed):
                         print('significant assemblies',assemblyAct[:,:].T.shape[1])
 
                         # save to dictionary
-                        assembly_dictionary[key['nwb_file_name']][sort_interval][pos_name] = (reward_cluster_out_list,
-                                                                                        assemblyAct)
+                        assembly_dictionary['entry'] = (filtered_arm_end_clusters,assemblyAct)
                 else:
-                    print('no spikes')
-            except IndexError as e:
-                print('no cluster data:',key['nwb_file_name'])
+                        print('no spikes')
 
         key["assembly_dictionary"] = assembly_dictionary
+        key["input_cluster_count"] = len(filtered_arm_end_clusters)
 
         self.insert1(key)
