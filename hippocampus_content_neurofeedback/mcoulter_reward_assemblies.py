@@ -8,7 +8,8 @@ import sys
 from hippocampus_content_neurofeedback.mcoulter_reward_cluster_list import RewardClusterList
 from hippocampus_content_neurofeedback.mcoulter_realtime_filename import RealtimeFilename
 from spyglass.decoding import SortedSpikesIndicator
-from spyglass.mcoulter_statescript_rewards import (StatescriptReward)
+from spyglass.mcoulter_statescript_rewards import StatescriptReward
+from spyglass.mcoulter_statescript_time import StatescriptTaskTime
 import pprint
 import warnings
 # import matplotlib.pyplot as plt
@@ -98,6 +99,8 @@ class CellAssembly(dj.Computed):
         percentile = assembly_parameters["percentile"]
         no_enrich = assembly_parameters['no_enrich']
         spike_cutoff = assembly_parameters['spike_cutoff']
+        taskstate_ass = assembly_parameters['taskstate_ass']
+        print('taskstate for spikes: ',taskstate_ass)
 
         #__author__ = "Vítor Lopes dos Santos"
         #__version__ = "2019.1"
@@ -381,6 +384,280 @@ class CellAssembly(dj.Computed):
             sort_interval = 'r2_r4'  
         elif pos_name == 'pos 6 valid times' and key["nwb_file_name"] == 'tonks20211105_.nwb':
             sort_interval = 'r2_r4'  
+                # need to check interval_list_name and nwb_file_name and include all possibilites here
+        elif (
+            pos_name == "pos 1 valid times"
+            and key["nwb_file_name"] == "arthur20220404_.nwb"
+        ):
+            sort_interval = "r1_r2"
+        elif (
+            pos_name == "pos 3 valid times"
+            and key["nwb_file_name"] == "arthur20220404_.nwb"
+        ):
+            sort_interval = "r1_r2"
+        elif (
+            pos_name == "pos 9 valid times"
+            and key["nwb_file_name"] == "arthur20220404_.nwb"
+        ):
+            sort_interval = "r2_r7"
+
+        elif (
+            pos_name == "pos 2 valid times"
+            and key["nwb_file_name"] == "arthur20220403_.nwb"
+        ):
+            sort_interval = "r2_r4"
+        elif (
+            pos_name == "pos 5 valid times"
+            and key["nwb_file_name"] == "arthur20220403_.nwb"
+        ):
+            sort_interval = "r2_r4"
+        elif (
+            pos_name == "pos 7 valid times"
+            and key["nwb_file_name"] == "arthur20220403_.nwb"
+        ):
+            sort_interval = "r4_r5"
+
+        elif (
+            pos_name == "pos 1 valid times"
+            and key["nwb_file_name"] == "arthur20220402_.nwb"
+        ):
+            sort_interval = "r1_r3"
+        elif (
+            pos_name == "pos 4 valid times"
+            and key["nwb_file_name"] == "arthur20220402_.nwb"
+        ):
+            sort_interval = "r1_r3"
+        elif (
+            pos_name == "pos 9 valid times"
+            and key["nwb_file_name"] == "arthur20220402_.nwb"
+        ):
+            sort_interval = "r3_r7"
+
+        elif (
+            pos_name == "pos 3 valid times"
+            and key["nwb_file_name"] == "arthur20220330_.nwb"
+        ):
+            sort_interval = "r3_r4"
+        elif (
+            pos_name == "pos 5 valid times"
+            and key["nwb_file_name"] == "arthur20220330_.nwb"
+        ):
+            sort_interval = "r3_r4"
+        elif (
+            pos_name == "pos 8 valid times"
+            and key["nwb_file_name"] == "arthur20220330_.nwb"
+        ):
+            sort_interval = "r4_r6"
+
+        elif (
+            pos_name == "pos 2 valid times"
+            and key["nwb_file_name"] == "arthur20220329_.nwb"
+        ):
+            sort_interval = "r2_r4"
+        elif (
+            pos_name == "pos 5 valid times"
+            and key["nwb_file_name"] == "arthur20220329_.nwb"
+        ):
+            sort_interval = "r2_r4"
+        elif (
+            pos_name == "pos 7 valid times"
+            and key["nwb_file_name"] == "arthur20220329_.nwb"
+        ):
+            sort_interval = "r4_r5"
+
+        elif (
+            pos_name == "pos 1 valid times"
+            and key["nwb_file_name"] == "arthur20220328_.nwb"
+        ):
+            sort_interval = "r1_r2"
+        elif (
+            pos_name == "pos 3 valid times"
+            and key["nwb_file_name"] == "arthur20220328_.nwb"
+        ):
+            sort_interval = "r1_r2"
+        elif (
+            pos_name == "pos 6 valid times"
+            and key["nwb_file_name"] == "arthur20220328_.nwb"
+        ):
+            sort_interval = "r2_r4"
+
+        elif (
+            pos_name == "pos 2 valid times"
+            and key["nwb_file_name"] == "arthur20220323_.nwb"
+        ):
+            sort_interval = "r2_r3"
+        elif (
+            pos_name == "pos 4 valid times"
+            and key["nwb_file_name"] == "arthur20220323_.nwb"
+        ):
+            sort_interval = "r2_r3"
+        elif (
+            pos_name == "pos 6 valid times"
+            and key["nwb_file_name"] == "arthur20220323_.nwb"
+        ):
+            sort_interval = "r3_r4"
+
+        elif (
+            pos_name == "pos 1 valid times"
+            and key["nwb_file_name"] == "arthur20220322_.nwb"
+        ):
+            sort_interval = "r1_r2"
+        elif (
+            pos_name == "pos 3 valid times"
+            and key["nwb_file_name"] == "arthur20220322_.nwb"
+        ):
+            sort_interval = "r1_r2"
+        elif (
+            pos_name == "pos 8 valid times"
+            and key["nwb_file_name"] == "arthur20220322_.nwb"
+        ):
+            sort_interval = "r2_r6"
+
+        elif (
+            pos_name == "pos 1 valid times"
+            and key["nwb_file_name"] == "arthur20220321_.nwb"
+        ):
+            sort_interval = "r1_r2"
+        elif (
+            pos_name == "pos 3 valid times"
+            and key["nwb_file_name"] == "arthur20220321_.nwb"
+        ):
+            sort_interval = "r1_r2"
+        elif (
+            pos_name == "pos 6 valid times"
+            and key["nwb_file_name"] == "arthur20220321_.nwb"
+        ):
+            sort_interval = "r2_r4"
+
+
+        elif (
+            pos_name == "pos 1 valid times"
+            and key["nwb_file_name"] == "ron20210824_.nwb"
+        ):
+            sort_interval = "r1_r3"
+        elif (
+            pos_name == "pos 4 valid times"
+            and key["nwb_file_name"] == "ron20210824_.nwb"
+        ):
+            sort_interval = "r1_r3"
+        elif (
+            pos_name == "pos 6 valid times"
+            and key["nwb_file_name"] == "ron20210824_.nwb"
+        ):
+            sort_interval = "r3_r4"
+
+        elif (
+            pos_name == "pos 1 valid times"
+            and key["nwb_file_name"] == "ron20210823_.nwb"
+        ):
+            sort_interval = "r1_r2"
+        elif (
+            pos_name == "pos 3 valid times"
+            and key["nwb_file_name"] == "ron20210823_.nwb"
+        ):
+            sort_interval = "r1_r2"
+        elif (
+            pos_name == "pos 6 valid times"
+            and key["nwb_file_name"] == "ron20210823_.nwb"
+        ):
+            sort_interval = "r2_r4"
+
+        elif (
+            pos_name == "pos 1 valid times"
+            and key["nwb_file_name"] == "ron20210822_.nwb"
+        ):
+            sort_interval = "r1_r2"
+        elif (
+            pos_name == "pos 3 valid times"
+            and key["nwb_file_name"] == "ron20210822_.nwb"
+        ):
+            sort_interval = "r1_r2"
+        elif (
+            pos_name == "pos 6 valid times"
+            and key["nwb_file_name"] == "ron20210822_.nwb"
+        ):
+            sort_interval = "r2_r3"
+
+        elif (
+            pos_name == "pos 1 valid times"
+            and key["nwb_file_name"] == "ron20210817_.nwb"
+        ):
+            sort_interval = "r1_r3"
+        elif (
+            pos_name == "pos 4 valid times"
+            and key["nwb_file_name"] == "ron20210817_.nwb"
+        ):
+            sort_interval = "r1_r3"
+        elif (
+            pos_name == "pos 7 valid times"
+            and key["nwb_file_name"] == "ron20210817_.nwb"
+        ):
+            sort_interval = "r3_r5"
+
+        elif (
+            pos_name == "pos 1 valid times"
+            and key["nwb_file_name"] == "molly20220315_.nwb"
+        ):
+            sort_interval = "r1_r3"
+        elif (
+            pos_name == "pos 4 valid times"
+            and key["nwb_file_name"] == "molly20220315_.nwb"
+        ):
+            sort_interval = "r1_r3"
+        elif (
+            pos_name == "pos 6 valid times"
+            and key["nwb_file_name"] == "molly20220315_.nwb"
+        ):
+            sort_interval = "r3_r4"
+
+        elif (
+            pos_name == "pos 1 valid times"
+            and key["nwb_file_name"] == "molly20220329_.nwb"
+        ):
+            sort_interval = "r1_r3"
+        elif (
+            pos_name == "pos 4 valid times"
+            and key["nwb_file_name"] == "molly20220329_.nwb"
+        ):
+            sort_interval = "r1_r3"
+        elif (
+            pos_name == "pos 6 valid times"
+            and key["nwb_file_name"] == "molly20220329_.nwb"
+        ):
+            sort_interval = "r3_r4"
+
+        elif (
+            pos_name == "pos 1 valid times"
+            and key["nwb_file_name"] == "arthur20220319_.nwb"
+        ):
+            sort_interval = "r2_r2"
+        elif (
+            pos_name == "pos 3 valid times"
+            and key["nwb_file_name"] == "arthur20220319_.nwb"
+        ):
+            sort_interval = "r2_r2"
+        elif (
+            pos_name == "pos 5 valid times"
+            and key["nwb_file_name"] == "arthur20220319_.nwb"
+        ):
+            sort_interval = "r2_r3"
+
+        elif (
+            pos_name == "pos 1 valid times"
+            and key["nwb_file_name"] == "arthur20220324_.nwb"
+        ):
+            sort_interval = "r1_r3"
+        elif (
+            pos_name == "pos 3 valid times"
+            and key["nwb_file_name"] == "arthur20220324_.nwb"
+        ):
+            sort_interval = "r1_r3"
+        elif (
+            pos_name == "pos 5 valid times"
+            and key["nwb_file_name"] == "arthur20220324_.nwb"
+        ):
+            sort_interval = "r3_r4"
+        
         elif pos_name == 'pos 1 valid times':
             sort_interval = 'r1_r2'
         elif pos_name == 'pos 3 valid times':
@@ -396,6 +673,10 @@ class CellAssembly(dj.Computed):
           
         else:
             raise KeyError('mising pos name')
+
+        # for pippin skip this
+        #task2_start = (StatescriptTaskTime & {'nwb_file_name':key['nwb_file_name']}
+        #      & {'interval_list_name':pos_name}).fetch('task2_start')[0]
 
         # load real-time recording file
         os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
@@ -438,7 +719,7 @@ class CellAssembly(dj.Computed):
         print("rewards", stim_message_diff_reward_2.shape)
 
         # only high reward sessions
-        if stim_message_diff_reward_2.shape[0] > 0:
+        if stim_message_diff_reward_2.shape[0] > -1:
 
             try:
                 reward_cluster_dict = (RewardClusterList() & {'nwb_file_name':key['nwb_file_name']} & 
@@ -523,12 +804,26 @@ class CellAssembly(dj.Computed):
                                     {'sort_interval_name':sort_interval} &                
                                     {'interval_list_name':pos_name} & {'sort_group_id':item[0].split('_')[1]} &
                                 {'artifact_removed_interval_list_name LIKE "%ampl_100_%"'}).fetch_dataframe()[column_name])
+                                # find a way to only get task1 spikes
+                                spike_time_table = (SortedSpikesIndicator & {'nwb_file_name' : key['nwb_file_name']} & 
+                                                    {'sort_interval_name':sort_interval} & {'interval_list_name':pos_name} & 
+                                                    {'sort_group_id':item[0].split('_')[1]} &
+                                                {'artifact_removed_interval_list_name LIKE "%ampl_100_%"'}).fetch_nwb()
+
+                                all_times = spike_time_table[0]['spike_indicator'].time
+
+                                if taskstate_ass == 1:
+                                    tet_units = tet_units[all_times<task2_start]
+
                                 #print(tet_units.shape)
                                 if unit_counter > 0:
                                     all_units = np.vstack((all_units, tet_units))
                                 elif unit_counter == 0:
                                     all_units = tet_units.copy()
-                                unit_counter += 1                                          
+                                unit_counter += 1   
+                            if unit_counter == 1:
+                                print('spike table',all_units.shape,'whole session: ',all_times.shape)  
+
                         except ValueError as e:
                             print('no sorted spikes')
                         
@@ -555,7 +850,7 @@ class CellAssembly(dj.Computed):
                         print('significant assemblies',assemblyAct[:,:].T.shape[1])
 
                         # save to dictionary
-                        assembly_dictionary[key['nwb_file_name']][sort_interval][pos_name] = (reward_cluster_out_list,
+                        assembly_dictionary[key['nwb_file_name']][sort_interval][pos_name] = (reward_cluster_out_list,patterns,
                                                                                         assemblyAct)
                 else:
                     print('no spikes')

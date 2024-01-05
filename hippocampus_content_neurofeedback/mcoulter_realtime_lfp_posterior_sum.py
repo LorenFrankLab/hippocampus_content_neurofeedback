@@ -340,7 +340,7 @@ class LFPPosteriorSum(dj.Computed):
         print("rewards", stim_message_diff_reward_2.shape)
 
         # only high reward sessions
-        if stim_message_diff_reward_2.shape[0] > 67:
+        if stim_message_diff_reward_2.shape[0] > 0:
 
             # fred, pippin, percy
             if rat_name == "pippin":
@@ -584,16 +584,23 @@ class LFPPosteriorSum(dj.Computed):
 
                 average_arm_end_bins = np.int(
                     np.mean(
-                        [arm1_end_timebins.shape[0], arm1_end_timebins.shape[0]]
+                        [arm1_end_timebins.shape[0], arm2_end_timebins.shape[0]]
                     )
                 )
 
-                center_well_timebins = task2_decode_center[
-                    task2_decode_center["center_decode"] > 0.6
-                ]["bin_timestamp"].values
-                center_well_timebins_sub = np.random.choice(
-                    center_well_timebins, average_arm_end_bins
-                )
+                # old way: not random
+                #center_well_timebins = task2_decode_center[
+                #    task2_decode_center["center_decode"] > 0.6
+                #]["bin_timestamp"].values
+                #center_well_timebins_sub = np.random.choice(
+                #    center_well_timebins, average_arm_end_bins
+                #)
+
+                # random times
+                print('***random times***')
+                all_center_times = task2_decode_center['bin_timestamp'].values
+                center_well_timebins_sub = np.random.choice(all_center_times, average_arm_end_bins)
+
                 print(
                     "subsample center bins",
                     average_arm_end_bins,

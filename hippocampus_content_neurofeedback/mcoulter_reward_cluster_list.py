@@ -671,6 +671,7 @@ class RewardClusterList(dj.Computed):
                                             FR_before_reward / FR_baseline
                                         )
 
+                                        # this is for use with no_enrich
                                         # save before FR check
                                         if (single_session == first_sess and session == "run1_v_run2"):
                                             reward_cell_dict_v2[
@@ -725,37 +726,42 @@ class RewardClusterList(dj.Computed):
                                             all_spike_count = session_spikes.shape[0]
                                             # all_spikes = session_spikes
                                             # only task 2
-                                            task2_spikes = session_spikes[
-                                                (session_spikes > task2_start)
-                                                & (session_spikes < task2_end)
-                                            ]
-                                            # only task2 in box area (tolerance = 50 msec)
-                                            task2_box_spikes = np.array(
-                                                list(
-                                                    {
-                                                        i
-                                                        for i in task2_spikes
-                                                        if np.isclose(
-                                                            linear_pos_box.index,
-                                                            i,
-                                                            0,
-                                                            0.05,
-                                                        ).any()
-                                                    }
+                                            try:
+                                                task2_spikes = session_spikes[
+                                                    (session_spikes > task2_start)
+                                                    & (session_spikes < task2_end)
+                                                ]
+                                                # only task2 in box area (tolerance = 50 msec)
+                                                task2_box_spikes = np.array(
+                                                    list(
+                                                        {
+                                                            i
+                                                            for i in task2_spikes
+                                                            if np.isclose(
+                                                                linear_pos_box.index,
+                                                                i,
+                                                                0,
+                                                                0.05,
+                                                            ).any()
+                                                        }
+                                                    )
                                                 )
-                                            )
 
-                                            task2_center_spikes = np.array(
-                                                list(
-                                                    {
-                                                        i
-                                                        for i in task2_spikes
-                                                        if np.isclose(
-                                                            center_pos.index, i, 0, 0.05
-                                                        ).any()
-                                                    }
+                                                task2_center_spikes = np.array(
+                                                    list(
+                                                        {
+                                                            i
+                                                            for i in task2_spikes
+                                                            if np.isclose(
+                                                                center_pos.index, i, 0, 0.05
+                                                            ).any()
+                                                        }
+                                                    )
                                                 )
-                                            )
+                                            except ValueError as e:
+                                                print('no task2')
+                                                task2_center_spikes = [0]
+                                        
                                             # single_session_dict[item_count] = tetrode_spike_times[np.int(cluster)]
                                             # single_session_dict[item_count] = task2_box_spikes
 
