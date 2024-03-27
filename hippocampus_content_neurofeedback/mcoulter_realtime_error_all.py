@@ -259,6 +259,7 @@ class RealtimeErrorAll(dj.Computed):
             arm1_runs_pandas = pd.DataFrame(arm1_runs, columns=["start", "end"])
             arm1_in_runs_pandas = pd.DataFrame(arm1_in_runs, columns=["start", "end"])
             arm1_out_runs_pandas = pd.DataFrame(arm1_out_runs, columns=["start", "end"])
+            print('arm1 runs',arm1_out_runs_pandas.shape)
 
             # loop through visits to arm2 and find interval for whole run down arm
             # NOTE: does not include last run during task3
@@ -268,6 +269,7 @@ class RealtimeErrorAll(dj.Computed):
             arm2_runs = np.zeros((intervals_40.shape[0], 2))
             arm2_in_runs = np.zeros((intervals_40.shape[0], 2))
             arm2_out_runs = np.zeros((intervals_40.shape[0], 2))
+            
 
             for arm_end in np.arange(intervals_40.shape[0]):
                 leave_arm_end_index = intervals_40.iloc[[arm_end]][
@@ -341,6 +343,7 @@ class RealtimeErrorAll(dj.Computed):
             arm2_runs_pandas = pd.DataFrame(arm2_runs, columns=["start", "end"])
             arm2_in_runs_pandas = pd.DataFrame(arm2_in_runs, columns=["start", "end"])
             arm2_out_runs_pandas = pd.DataFrame(arm2_out_runs, columns=["start", "end"])
+            print('arm2 runs',arm2_out_runs_pandas.shape)
 
             # full arm runs
             if in_out == 1:
@@ -380,154 +383,160 @@ class RealtimeErrorAll(dj.Computed):
             # all different
             # choose earliest time
 
-            if arm1_last_three["start"].values[0] < arm2_last_three["start"].values[0]:
-                last_3_start_time = arm1_last_three["start"].values[0].copy()
-            elif (
-                arm1_last_three["start"].values[0] > arm2_last_three["start"].values[0]
-            ):
-                last_3_start_time = arm2_last_three["start"].values[0].copy()
+            print(arm1_last_three.shape, arm2_last_three.shape)
 
-            arm_run_decoder = decoder_data[
-                (decoder_data["bin_timestamp"] > last_3_start_time)
-                & (decoder_data["bin_timestamp"] < task2_start_ts)
-                & (decoder_data["velocity"] > velocity_filter)
-            ]
-            arm_run_decoder["post_max"] = (
-                arm_run_decoder.iloc[:, 27:68]
-                .idxmax(axis=1)
-                .str.slice(1, 3, 1)
-                .astype("int16")
-            )
+            try:
+                if arm1_last_three["start"].values[0] < arm2_last_three["start"].values[0]:
+                    last_3_start_time = arm1_last_three["start"].values[0].copy()
+                elif (
+                    arm1_last_three["start"].values[0] > arm2_last_three["start"].values[0]
+                ):
+                    last_3_start_time = arm2_last_three["start"].values[0].copy()
 
-            # need to remove time bins with 0 spikes - no posterior
-            arm_run_decoder_spikes = arm_run_decoder[arm_run_decoder["spike_count"] > 0]
-            print("bins for decoder quality", arm_run_decoder_spikes.shape)
-
-            # need to break into 9 tables for accurate error distance measure
-            ## ARM 1
-            arm_run_decoder_spikes_1_to_box = arm_run_decoder_spikes[
-                (arm_run_decoder_spikes["real_pos"] > 10)
-                & (arm_run_decoder_spikes["real_pos"] < 26)
-                & (arm_run_decoder_spikes["post_max"] < 10)
-            ]
-            accurate_error_1_to_box = np.abs(
-                (
-                    arm_run_decoder_spikes_1_to_box["real_pos"]
-                    - (arm_run_decoder_spikes_1_to_box["post_max"] + 4)
-                )
-            )
-
-            arm_run_decoder_spikes_1_to_2 = arm_run_decoder_spikes[
-                (arm_run_decoder_spikes["real_pos"] > 10)
-                & (arm_run_decoder_spikes["real_pos"] < 26)
-                & (arm_run_decoder_spikes["post_max"] > 26)
-            ]
-
-            accurate_error_1_to_2 = np.abs(
-                (
-                    (arm_run_decoder_spikes_1_to_2["real_pos"] - 13)
-                    - (arm_run_decoder_spikes_1_to_2["post_max"] - 29) * -1
-                )
-            )
-
-            arm_run_decoder_spikes_1_to_1 = arm_run_decoder_spikes[
-                (arm_run_decoder_spikes["real_pos"] > 10)
-                & (arm_run_decoder_spikes["real_pos"] < 26)
-                & (arm_run_decoder_spikes["post_max"] > 10)
-                & (arm_run_decoder_spikes["post_max"] < 26)
-            ]
-            accurate_error_1_to_1 = np.abs(
-                (
-                    arm_run_decoder_spikes_1_to_1["real_pos"]
-                    - (arm_run_decoder_spikes_1_to_1["post_max"] + 0)
-                )
-            )
-
-            ## ARM 2
-            arm_run_decoder_spikes_2_to_box = arm_run_decoder_spikes[
-                (arm_run_decoder_spikes["real_pos"] > 26)
-                & (arm_run_decoder_spikes["post_max"] < 10)
-            ]
-            accurate_error_2_to_box = np.abs(
-                (
-                    arm_run_decoder_spikes_2_to_box["real_pos"]
-                    - (arm_run_decoder_spikes_2_to_box["post_max"] + 4 + 16)
-                )
-            )
-
-            arm_run_decoder_spikes_2_to_2 = arm_run_decoder_spikes[
-                (arm_run_decoder_spikes["real_pos"] > 26)
-                & (arm_run_decoder_spikes["post_max"] > 26)
-            ]
-            accurate_error_2_to_2 = np.abs(
-                (
-                    arm_run_decoder_spikes_2_to_2["real_pos"]
-                    - (arm_run_decoder_spikes_2_to_2["post_max"] + 0)
-                )
-            )
-
-            arm_run_decoder_spikes_2_to_1 = arm_run_decoder_spikes[
-                (arm_run_decoder_spikes["real_pos"] > 26)
-                & (arm_run_decoder_spikes["post_max"] > 10)
-                & (arm_run_decoder_spikes["post_max"] < 26)
-            ]
-            accurate_error_2_to_1 = np.abs(
-                (
-                    (arm_run_decoder_spikes_2_to_1["real_pos"] - 29)
-                    - (arm_run_decoder_spikes_2_to_1["post_max"] - 13) * -1
-                )
-            )
-
-            ## BOX
-            arm_run_decoder_spikes_box_to_2 = arm_run_decoder_spikes[
-                (arm_run_decoder_spikes["real_pos"] < 10)
-                & (arm_run_decoder_spikes["post_max"] > 26)
-            ]
-            accurate_error_box_to_2 = np.abs(
-                (
-                    (arm_run_decoder_spikes_box_to_2["real_pos"] + 4 + 16)
-                    - (arm_run_decoder_spikes_box_to_2["post_max"])
-                )
-            )
-
-            arm_run_decoder_spikes_box_to_box = arm_run_decoder_spikes[
-                (arm_run_decoder_spikes["real_pos"] < 10)
-                & (arm_run_decoder_spikes["post_max"] < 10)
-            ]
-            accurate_error_box_to_box = np.abs(
-                (
-                    arm_run_decoder_spikes_box_to_box["real_pos"]
-                    - (arm_run_decoder_spikes_box_to_box["post_max"] + 0)
-                )
-            )
-
-            arm_run_decoder_spikes_box_to_1 = arm_run_decoder_spikes[
-                (arm_run_decoder_spikes["real_pos"] < 10)
-                & (arm_run_decoder_spikes["post_max"] > 10)
-                & (arm_run_decoder_spikes["post_max"] < 26)
-            ]
-            accurate_error_box_to_1 = np.abs(
-                (
-                    (arm_run_decoder_spikes_box_to_1["real_pos"] + 4)
-                    - (arm_run_decoder_spikes_box_to_1["post_max"])
-                )
-            )
-
-            # combine all errors
-            all_decoding_error = pd.concat(
-                [
-                    accurate_error_1_to_box * 5,
-                    accurate_error_1_to_2 * 5,
-                    accurate_error_1_to_1 * 5,
-                    accurate_error_2_to_box * 5,
-                    accurate_error_2_to_2 * 5,
-                    accurate_error_2_to_1 * 5,
-                    accurate_error_box_to_box * 5,
-                    accurate_error_box_to_2 * 5,
-                    accurate_error_box_to_1 * 5,
+                arm_run_decoder = decoder_data[
+                    (decoder_data["bin_timestamp"] > last_3_start_time)
+                    & (decoder_data["bin_timestamp"] < task2_start_ts)
+                    & (decoder_data["velocity"] > velocity_filter)
                 ]
-            )
-            print(all_decoding_error.shape)
+                arm_run_decoder["post_max"] = (
+                    arm_run_decoder.iloc[:, 27:68]
+                    .idxmax(axis=1)
+                    .str.slice(1, 3, 1)
+                    .astype("int16")
+                )
 
+                # need to remove time bins with 0 spikes - no posterior
+                arm_run_decoder_spikes = arm_run_decoder[arm_run_decoder["spike_count"] > 0]
+                print("bins for decoder quality", arm_run_decoder_spikes.shape)
+
+                # need to break into 9 tables for accurate error distance measure
+                ## ARM 1
+                arm_run_decoder_spikes_1_to_box = arm_run_decoder_spikes[
+                    (arm_run_decoder_spikes["real_pos"] > 10)
+                    & (arm_run_decoder_spikes["real_pos"] < 26)
+                    & (arm_run_decoder_spikes["post_max"] < 10)
+                ]
+                accurate_error_1_to_box = np.abs(
+                    (
+                        arm_run_decoder_spikes_1_to_box["real_pos"]
+                        - (arm_run_decoder_spikes_1_to_box["post_max"] + 4)
+                    )
+                )
+
+                arm_run_decoder_spikes_1_to_2 = arm_run_decoder_spikes[
+                    (arm_run_decoder_spikes["real_pos"] > 10)
+                    & (arm_run_decoder_spikes["real_pos"] < 26)
+                    & (arm_run_decoder_spikes["post_max"] > 26)
+                ]
+
+                accurate_error_1_to_2 = np.abs(
+                    (
+                        (arm_run_decoder_spikes_1_to_2["real_pos"] - 13)
+                        - (arm_run_decoder_spikes_1_to_2["post_max"] - 29) * -1
+                    )
+                )
+
+                arm_run_decoder_spikes_1_to_1 = arm_run_decoder_spikes[
+                    (arm_run_decoder_spikes["real_pos"] > 10)
+                    & (arm_run_decoder_spikes["real_pos"] < 26)
+                    & (arm_run_decoder_spikes["post_max"] > 10)
+                    & (arm_run_decoder_spikes["post_max"] < 26)
+                ]
+                accurate_error_1_to_1 = np.abs(
+                    (
+                        arm_run_decoder_spikes_1_to_1["real_pos"]
+                        - (arm_run_decoder_spikes_1_to_1["post_max"] + 0)
+                    )
+                )
+
+                ## ARM 2
+                arm_run_decoder_spikes_2_to_box = arm_run_decoder_spikes[
+                    (arm_run_decoder_spikes["real_pos"] > 26)
+                    & (arm_run_decoder_spikes["post_max"] < 10)
+                ]
+                accurate_error_2_to_box = np.abs(
+                    (
+                        arm_run_decoder_spikes_2_to_box["real_pos"]
+                        - (arm_run_decoder_spikes_2_to_box["post_max"] + 4 + 16)
+                    )
+                )
+
+                arm_run_decoder_spikes_2_to_2 = arm_run_decoder_spikes[
+                    (arm_run_decoder_spikes["real_pos"] > 26)
+                    & (arm_run_decoder_spikes["post_max"] > 26)
+                ]
+                accurate_error_2_to_2 = np.abs(
+                    (
+                        arm_run_decoder_spikes_2_to_2["real_pos"]
+                        - (arm_run_decoder_spikes_2_to_2["post_max"] + 0)
+                    )
+                )
+
+                arm_run_decoder_spikes_2_to_1 = arm_run_decoder_spikes[
+                    (arm_run_decoder_spikes["real_pos"] > 26)
+                    & (arm_run_decoder_spikes["post_max"] > 10)
+                    & (arm_run_decoder_spikes["post_max"] < 26)
+                ]
+                accurate_error_2_to_1 = np.abs(
+                    (
+                        (arm_run_decoder_spikes_2_to_1["real_pos"] - 29)
+                        - (arm_run_decoder_spikes_2_to_1["post_max"] - 13) * -1
+                    )
+                )
+
+                ## BOX
+                arm_run_decoder_spikes_box_to_2 = arm_run_decoder_spikes[
+                    (arm_run_decoder_spikes["real_pos"] < 10)
+                    & (arm_run_decoder_spikes["post_max"] > 26)
+                ]
+                accurate_error_box_to_2 = np.abs(
+                    (
+                        (arm_run_decoder_spikes_box_to_2["real_pos"] + 4 + 16)
+                        - (arm_run_decoder_spikes_box_to_2["post_max"])
+                    )
+                )
+
+                arm_run_decoder_spikes_box_to_box = arm_run_decoder_spikes[
+                    (arm_run_decoder_spikes["real_pos"] < 10)
+                    & (arm_run_decoder_spikes["post_max"] < 10)
+                ]
+                accurate_error_box_to_box = np.abs(
+                    (
+                        arm_run_decoder_spikes_box_to_box["real_pos"]
+                        - (arm_run_decoder_spikes_box_to_box["post_max"] + 0)
+                    )
+                )
+
+                arm_run_decoder_spikes_box_to_1 = arm_run_decoder_spikes[
+                    (arm_run_decoder_spikes["real_pos"] < 10)
+                    & (arm_run_decoder_spikes["post_max"] > 10)
+                    & (arm_run_decoder_spikes["post_max"] < 26)
+                ]
+                accurate_error_box_to_1 = np.abs(
+                    (
+                        (arm_run_decoder_spikes_box_to_1["real_pos"] + 4)
+                        - (arm_run_decoder_spikes_box_to_1["post_max"])
+                    )
+                )
+
+                # combine all errors
+                all_decoding_error = pd.concat(
+                    [
+                        accurate_error_1_to_box * 5,
+                        accurate_error_1_to_2 * 5,
+                        accurate_error_1_to_1 * 5,
+                        accurate_error_2_to_box * 5,
+                        accurate_error_2_to_2 * 5,
+                        accurate_error_2_to_1 * 5,
+                        accurate_error_box_to_box * 5,
+                        accurate_error_box_to_2 * 5,
+                        accurate_error_box_to_1 * 5,
+                    ]
+                )
+                print(all_decoding_error.shape)
+            except IndexError as e:
+                print('arm run dataframe empty')
+                all_decoding_error = [0,0,0]
+                
         key["error_table"] = np.array(all_decoding_error)
         self.insert1(key)

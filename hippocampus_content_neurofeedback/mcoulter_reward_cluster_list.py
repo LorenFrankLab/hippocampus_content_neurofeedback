@@ -9,7 +9,7 @@ from spyglass.common import (
     IntervalLinearizedPosition,
     IntervalPositionInfo,
 )
-from spyglass.spikesorting import (
+from spyglass.spikesorting.v0 import (
     Waveforms,
     CuratedSpikeSorting,
     SpikeSorting,

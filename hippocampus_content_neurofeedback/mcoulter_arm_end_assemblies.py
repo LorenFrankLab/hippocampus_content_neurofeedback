@@ -8,10 +8,11 @@ import sys
 from hippocampus_content_neurofeedback.mcoulter_reward_cluster_list import RewardClusterList
 from hippocampus_content_neurofeedback.mcoulter_realtime_filename import RealtimeFilename
 from hippocampus_content_neurofeedback.mcoulter_arm_end_clusters import ArmEndClusters
-from spyglass.decoding import SortedSpikesIndicator
+from spyglass.decoding.v0.sorted_spikes import SortedSpikesIndicator
 from spyglass.common import IntervalList
-from spyglass.spikesorting import Waveforms, CuratedSpikeSorting
+from spyglass.spikesorting.v0 import Waveforms, CuratedSpikeSorting
 from spyglass.mcoulter_statescript_rewards import (StatescriptReward)
+from spyglass.utils.nwb_helper_fn import close_nwb_files
 
 import pprint
 import warnings
@@ -88,6 +89,9 @@ class ArmEndCellAssembly(dj.Computed):
 
     def make(self, key):
         print(f"Computing cell asssembly for: {key}")
+        
+        # close any open files
+        close_nwb_files()
 
         assembly_parameters = (
             ArmEndCellAssemblyParameters
@@ -103,6 +107,7 @@ class ArmEndCellAssembly(dj.Computed):
         percentile = assembly_parameters["percentile"]
         min_spikes = assembly_parameters["min_spikes"]
         interneuron_FR = assembly_parameters["interneuron_FR"]
+        all_clusters = assembly_parameters["all_clusters"]
 
         #__author__ = "Vítor Lopes dos Santos"
         #__version__ = "2019.1"
@@ -393,187 +398,245 @@ class ArmEndCellAssembly(dj.Computed):
         #interneuron_FR = 7
         #min_spikes = 100
 
-        if len((ArmEndClusters & {'realtime_filename':key['realtime_filename']}).fetch('cluster_id')[0]) > 0:
-        
-                print(key['nwb_file_name'],len((ArmEndClusters & {'realtime_filename':key['realtime_filename']}).fetch('cluster_id')[0]))
-                cluster_id_list = (ArmEndClusters & {'realtime_filename':key['realtime_filename']}).fetch('cluster_id')[0]
-                arm1_spikes = (ArmEndClusters & {'realtime_filename':key['realtime_filename']}).fetch('arm1_end_spikes')[0]   
-                arm2_spikes = (ArmEndClusters & {'realtime_filename':key['realtime_filename']}).fetch('arm2_end_spikes')[0]  
-
-                # specify dictionary 
-                rat_name = key["nwb_file_name"].split("2")[0]
-
-                # how to get realtime filename - not needed
-                if rat_name == 'ron':
-                        dict_name = ron_all_dict
-                elif rat_name == 'tonks':
-                        dict_name = tonks_all_dict
-                elif rat_name == 'arthur':
-                        dict_name = arthur_all_dict
-                elif rat_name == 'molly':
-                        dict_name = molly_all_dict
-                elif rat_name == 'ginny':
-                        dict_name = ginny_all_dict
-                elif rat_name == 'pippin':
-                        dict_name = pippin_all_dict
-
-                target_arm = dict_name[key['nwb_file_name']]
-
-                filtered_arm_end_clusters = []
+        try:
+                if len((ArmEndClusters & {'realtime_filename':key['realtime_filename']}).fetch('cluster_id')[0]) > 0:
                 
-                # arm 1
-                if target_arm == 1:
-                        cluster_id_list_new = cluster_id_list[arm1_spikes>30]
-                # arm 2
-                elif target_arm == 2:
-                        cluster_id_list_new = cluster_id_list[arm2_spikes>30]
-                print('clusters in:',cluster_id_list_new.shape[0])
-                
-                reward_cluster_out_array = np.zeros((cluster_id_list_new.shape[0],2))
-                for i in np.arange(cluster_id_list_new.shape[0]):
-                        reward_cluster_out_array[i,0] = np.int(cluster_id_list_new[i].split('_')[0])
-                        reward_cluster_out_array[i,1] = np.int(cluster_id_list_new[i].split('_')[1])
+                        print(key['nwb_file_name'],len((ArmEndClusters & {'realtime_filename':key['realtime_filename']}).fetch('cluster_id')[0]))
+                        cluster_id_list = (ArmEndClusters & {'realtime_filename':key['realtime_filename']}).fetch('cluster_id')[0]
+                        arm1_spikes = (ArmEndClusters & {'realtime_filename':key['realtime_filename']}).fetch('arm1_end_spikes')[0]   
+                        arm2_spikes = (ArmEndClusters & {'realtime_filename':key['realtime_filename']}).fetch('arm2_end_spikes')[0]  
 
-                # start and end for each sesssion
-                start_time = (
-                IntervalList
-                & {"nwb_file_name": key["nwb_file_name"]}
-                & {"interval_list_name": key["interval_list_name"]}
-                ).fetch("valid_times")[0][0][0]
-                end_time = (
-                IntervalList
-                & {"nwb_file_name": key["nwb_file_name"]}
-                & {"interval_list_name": key["interval_list_name"]}
-                ).fetch("valid_times")[0][0][1]
-                session_duration = end_time - start_time
-                print('duration, mins:',session_duration/60)
-                
-                # replace this based on looking up sort intervals from waveforms
-                sort_intervals = np.unique(
-                (
-                        Waveforms
+                        assembly_dictionary[key['nwb_file_name']] = {}
+                        assembly_dictionary[key['nwb_file_name']][key['interval_list_name']] = {}
+                        
+                        # specify dictionary 
+                        rat_name = key["nwb_file_name"].split("2")[0]
+
+                        # how to get realtime filename - not needed
+                        if rat_name == 'ron':
+                                dict_name = ron_all_dict
+                        elif rat_name == 'tonks':
+                                dict_name = tonks_all_dict
+                        elif rat_name == 'arthur':
+                                dict_name = arthur_all_dict
+                        elif rat_name == 'molly':
+                                dict_name = molly_all_dict
+                        elif rat_name == 'ginny':
+                                dict_name = ginny_all_dict
+                        elif rat_name == 'pippin':
+                                dict_name = pippin_all_dict
+
+                        target_arm = dict_name[key['nwb_file_name']]
+
+                        filtered_arm_end_clusters = []
+                        
+                        # override this step to get all clusters
+                        if all_clusters == 1:
+                                cluster_id_list_new = cluster_id_list.copy()
+                        # arm 1
+                        elif target_arm == 1:
+                                cluster_id_list_new = cluster_id_list[arm1_spikes>30]
+                        # arm 2
+                        elif target_arm == 2:
+                                cluster_id_list_new = cluster_id_list[arm2_spikes>30]
+                        print('clusters in:',cluster_id_list_new.shape[0])
+                        
+                        reward_cluster_out_array = np.zeros((cluster_id_list_new.shape[0],2))
+                        for i in np.arange(cluster_id_list_new.shape[0]):
+                                reward_cluster_out_array[i,0] = np.int(cluster_id_list_new[i].split('_')[0])
+                                reward_cluster_out_array[i,1] = np.int(cluster_id_list_new[i].split('_')[1])
+
+                        # start and end for each sesssion
+                        start_time = (
+                        IntervalList
                         & {"nwb_file_name": key["nwb_file_name"]}
-                        & {"waveform_params_name": "default_whitened"}
-                        & {'artifact_removed_interval_list_name LIKE "%100_prop%"'}
-                ).fetch("sort_interval_name")
-                )
-                print("sort intervals", sort_intervals)
-
-                pos_name = 'pos '+str(np.int(key['interval_list_name'].split('_')[0])-1)+' valid times'
-
-                all_pos = np.unique(
-                (
-                        StatescriptReward & {"nwb_file_name": key["nwb_file_name"]}
-                ).fetch("interval_list_name")
-                )
-                if pos_name == all_pos[0]:
-                        sort_interval = sort_intervals[0]
-                elif pos_name == all_pos[1]:
-                        sort_interval = sort_intervals[0]
-                elif pos_name == all_pos[2]:
-                        sort_interval = sort_intervals[1]
-        
-                # loop through all the clusters that have > 30 target spikes
-                for i in np.arange(reward_cluster_out_array.shape[0]):
-                        # need to define cluster and tetrode based on this array
-                        # need to figure out how to get sort_interval
-                        tetrode = np.int(reward_cluster_out_array[i,0])
-                        cluster = np.int(reward_cluster_out_array[i,1])
+                        & {"interval_list_name": key["interval_list_name"]}
+                        ).fetch("valid_times")[0][0][0]
+                        end_time = (
+                        IntervalList
+                        & {"nwb_file_name": key["nwb_file_name"]}
+                        & {"interval_list_name": key["interval_list_name"]}
+                        ).fetch("valid_times")[0][0][1]
+                        session_duration = end_time - start_time
+                        print('duration, mins:',session_duration/60)
                         
-                        cluster_spike_times = (
-                                CuratedSpikeSorting
+                        # replace this based on looking up sort intervals from waveforms
+                        sort_intervals = np.unique(
+                        (
+                                Waveforms
                                 & {"nwb_file_name": key["nwb_file_name"]}
-                                & {"sort_interval_name": sort_interval}
-                                & {
-                                'artifact_removed_interval_list_name LIKE "%100_prop%"'
-                                }
-                                & {"sorter": "mountainsort4"}
-                                & {"curation_id": 1}
-                                & {"sort_group_id": tetrode}
-                                ).fetch_nwb()[0]["units"]["spike_times"][cluster]
+                                & {"waveform_params_name": "default_whitened"}
+                                & {'artifact_removed_interval_list_name LIKE "%100_prop%"'}
+                        ).fetch("sort_interval_name")
+                        )
+                        print("sort intervals", sort_intervals)
 
+                        pos_name = 'pos '+str(np.int(key['interval_list_name'].split('_')[0])-1)+' valid times'
 
-                        session_spikes = cluster_spike_times[
-                                (cluster_spike_times > start_time)
-                                & (cluster_spike_times < end_time)
-                        ]
-                        
-                        whole_firing_rate = (session_spikes.shape[0] / session_duration)
+                        all_pos = np.unique(
+                        (
+                                StatescriptReward & {"nwb_file_name": key["nwb_file_name"]}
+                        ).fetch("interval_list_name")
+                        )
+                        if pos_name == all_pos[0]:
+                                sort_interval = sort_intervals[0]
+                        elif pos_name == all_pos[1]:
+                                sort_interval = sort_intervals[0]
+                        elif pos_name == all_pos[2]:
+                                sort_interval = sort_intervals[1]
+                
+                        # define list for manually curated
+                        tet_list_3 = np.unique((CuratedSpikeSorting & {"nwb_file_name": key["nwb_file_name"]} &
+                                        {"sort_interval_name": sort_interval} & {'curation_id':3}).fetch('sort_group_id'))
 
-                        if (whole_firing_rate < interneuron_FR
-                        and session_spikes.shape[0] > min_spikes ):
-                                # add cluster to list for assembly analysis
-                                filtered_arm_end_clusters.append([tetrode,cluster])
-                                #print(whole_firing_rate, session_spikes.shape[0],session_duration/60)
-                        
-                print('clusters out',len(filtered_arm_end_clusters))
+                        # loop through all the clusters that have > 30 target spikes
+                        for i in np.arange(reward_cluster_out_array.shape[0]):
+                                # need to define cluster and tetrode based on this array
+                                # need to figure out how to get sort_interval
+                                tetrode = np.int(reward_cluster_out_array[i,0])
+                                cluster = np.int(reward_cluster_out_array[i,1])
+                                
+                                try:
+                                        if tetrode in tet_list_3:
+                                                curation_id = 3
+                                                cluster_spike_times = (
+                                                        CuratedSpikeSorting
+                                                        & {"nwb_file_name": key["nwb_file_name"]}
+                                                        & {"sort_interval_name": sort_interval}
+                                                        & {'artifact_removed_interval_list_name LIKE "%100_prop%"'}
+                                                        & {"sorter": "mountainsort4"}
+                                                        & {"curation_id": 3}
+                                                        & {"sort_group_id": tetrode}
+                                                        ).fetch_nwb()[0]["units"]["spike_times"][cluster]
+                                        else:
+                                                curation_id = 1
+                                                cluster_spike_times = (
+                                                        CuratedSpikeSorting
+                                                        & {"nwb_file_name": key["nwb_file_name"]}
+                                                        & {"sort_interval_name": sort_interval}
+                                                        & {'artifact_removed_interval_list_name LIKE "%100_prop%"'}
+                                                        & {"sorter": "mountainsort4"}
+                                                        & {"curation_id": 1}
+                                                        & {"sort_group_id": tetrode}
+                                                        ).fetch_nwb()[0]["units"]["spike_times"][cluster]
+                                except KeyError as e:
+                                        print('cluster missing',key['nwb_file_name'])
+                                        cluster_spike_times = np.array([0,0,0])
 
-                # new assembly dictionary
-                assembly_dictionary = {}
-                # this will use the 2nd half of the first pair to get the middle session
+                                session_spikes = cluster_spike_times[
+                                        (cluster_spike_times > start_time)
+                                        & (cluster_spike_times < end_time)
+                                ]
+                                
+                                whole_firing_rate = (session_spikes.shape[0] / session_duration)
 
-                spike_only_dict = {}
-                cluster_counter = 0
-                unit_counter = 0
+                                # remove MUA units
+                                cluster_label = (
+                                        CuratedSpikeSorting.Unit
+                                        & {"nwb_file_name": key["nwb_file_name"]}
+                                        & {"sort_interval_name": sort_interval}
+                                        & {'artifact_removed_interval_list_name LIKE "%100_prop%"'}
+                                        & {"sorter": "mountainsort4"}
+                                        & {"curation_id": curation_id}
+                                        & {"sort_group_id": tetrode}
+                                        & {"unit_id": cluster}
+                                ).fetch("label")[0]
+                                if cluster_label == "mua":
+                                        pass
+                                        #print("mua")
+                                elif cluster_label == "":
+                                                
+                                        if (whole_firing_rate < interneuron_FR
+                                        and session_spikes.shape[0] > min_spikes ):
+                                                # add cluster to list for assembly analysis
+                                                filtered_arm_end_clusters.append([tetrode,cluster])
+                                                #print(whole_firing_rate, session_spikes.shape[0],session_duration/60)
+                                
+                        print('clusters out',len(filtered_arm_end_clusters))
 
-                for item in filtered_arm_end_clusters:
-                        #print('reward cluster',item[0],item[1])
-                        #reward_cluster_out_list.append([np.int(item[0].split('_')[1]),
-                        #                                np.int(item[0].split('_')[2])])
-                        #print('reward spikes',item[1][6])
-                        #spike_only_dict[cluster_counter] = item[1][6]
-                        #print('spike count',len(spike_only_dict[cluster_counter]))
-                        cluster_counter += 1
-                        if np.int(item[0]) < 10 and np.int(item[1]) < 10:
-                                column_name = str('000')+str(item[0])+'_'+str('000')+str(item[1])
-                        elif np.int(item[0]) < 10:
-                                column_name = str('000')+str(item[0])+'_'+str('00')+str(item[1])
-                        elif np.int(item[1]) < 10:
-                                column_name = str('00')+str(item[0])+'_'+str('000')+str(item[1])
+                        # new assembly dictionary
+                        #assembly_dictionary = {}
+                        # this will use the 2nd half of the first pair to get the middle session
+
+                        spike_only_dict = {}
+                        cluster_counter = 0
+                        unit_counter = 0
+
+                        for item in filtered_arm_end_clusters:
+                                #print('reward cluster',item[0],item[1])
+                                #reward_cluster_out_list.append([np.int(item[0].split('_')[1]),
+                                #                                np.int(item[0].split('_')[2])])
+                                #print('reward spikes',item[1][6])
+                                #spike_only_dict[cluster_counter] = item[1][6]
+                                #print('spike count',len(spike_only_dict[cluster_counter]))
+                                cluster_counter += 1
+                                if np.int(item[0]) < 10 and np.int(item[1]) < 10:
+                                        column_name = str('000')+str(item[0])+'_'+str('000')+str(item[1])
+                                elif np.int(item[0]) < 10:
+                                        column_name = str('000')+str(item[0])+'_'+str('00')+str(item[1])
+                                elif np.int(item[1]) < 10:
+                                        column_name = str('00')+str(item[0])+'_'+str('000')+str(item[1])
+                                else:
+                                        column_name = str('00')+str(item[0])+'_'+str('00')+str(item[1])
+                                #column_name_list.append(column_name)
+                                
+                                #print(column_name)
+
+                                try:
+                                        if item[0] in tet_list_3:
+                                                #print('manually curated tetrode at indicator')
+                                                tet_units = np.array((SortedSpikesIndicator & {'nwb_file_name' : key['nwb_file_name']} & 
+                                                        {'sort_interval_name':sort_interval} & {'curation_id':3} &          
+                                                        {'interval_list_name':pos_name} & {'sort_group_id':item[0]} &
+                                                {'artifact_removed_interval_list_name LIKE "%ampl_100_%"'}).fetch_dataframe()[column_name])
+                                        else:
+                                                tet_units = np.array((SortedSpikesIndicator & {'nwb_file_name' : key['nwb_file_name']} & 
+                                                        {'sort_interval_name':sort_interval} & {'curation_id':1} &          
+                                                        {'interval_list_name':pos_name} & {'sort_group_id':item[0]} &
+                                                {'artifact_removed_interval_list_name LIKE "%ampl_100_%"'}).fetch_dataframe()[column_name])
+                                        #print(tet_units.shape)
+                                        if unit_counter > 0:
+                                                all_units = np.vstack((all_units, tet_units))
+                                        elif unit_counter == 0:
+                                                all_units = tet_units.copy()
+                                        unit_counter += 1
+                                except ValueError as e:
+                                        print('no sorted spikes',item)
+                                
+                        if len(all_units) > 0:
+                                try:
+                                        # find assemblies - code is below
+                                        # sum into 10 msec bins
+                                        #sum_bins = 5
+                                        max_index = (all_units.shape[1]//sum_bins)*sum_bins
+                                        all_units = all_units[:,:max_index]
+                                        binned_10ms = all_units[:,:].reshape(-1, np.int((all_units.shape[1])/sum_bins), sum_bins).sum(axis=2)
+                                        print('number units',binned_10ms.shape)
+
+                                        #nshu = 1000 # defines number of controls to run 
+                                        #percentile = 99.5 # defines percentile for significance threshold
+
+                                        #extractPatterns(all_units,0.01,'pca')
+                                        #patterns,significance,zactmat = runPatterns(binned_10ms,nullhyp='mp')
+                                        # with circular shuffle - for strong auto-correlations
+                                        patterns,significance,zactmat = runPatterns(binned_10ms,nullhyp='circ',nshu=nshu,percentile=percentile)
+
+                                        assemblyAct = computeAssemblyActivity(patterns,zactmat)
+                                        # note that the zactmat could be from another session (like a sleep session for "replay" analysis)
+
+                                        print('significant assemblies',assemblyAct[:,:].T.shape[1])
+
+                                        # save to dictionary
+                                        assembly_dictionary[key['nwb_file_name']][key['interval_list_name']] = (filtered_arm_end_clusters,patterns,assemblyAct)
+
+                                except (IndexError, ValueError) as e:
+                                        print('index error on max_index, or no spikes in binned')
                         else:
-                                column_name = str('00')+str(item[0])+'_'+str('00')+str(item[1])
-                        #column_name_list.append(column_name)
-                        
-                        try:
-                                tet_units = np.array((SortedSpikesIndicator & {'nwb_file_name' : key['nwb_file_name']} & 
-                                        {'sort_interval_name':sort_interval} &                
-                                        {'interval_list_name':pos_name} & {'sort_group_id':item[0]} &
-                                {'artifact_removed_interval_list_name LIKE "%ampl_100_%"'}).fetch_dataframe()[column_name])
-                                #print(tet_units.shape)
-                                if unit_counter > 0:
-                                        all_units = np.vstack((all_units, tet_units))
-                                elif unit_counter == 0:
-                                        all_units = tet_units.copy()
-                                unit_counter += 1
-                        except ValueError as e:
-                                print('no sorted spikes')
-                        
-                if len(all_units) > 0:
-                        # find assemblies - code is below
-                        # sum into 10 msec bins
-                        #sum_bins = 5
-                        max_index = (all_units.shape[1]//sum_bins)*sum_bins
-                        all_units = all_units[:,:max_index]
-                        binned_10ms = all_units[:,:].reshape(-1, np.int((all_units.shape[1])/sum_bins), sum_bins).sum(axis=2)
-                        print('number units',binned_10ms.shape)
-
-                        #nshu = 1000 # defines number of controls to run 
-                        #percentile = 99.5 # defines percentile for significance threshold
-
-                        #extractPatterns(all_units,0.01,'pca')
-                        #patterns,significance,zactmat = runPatterns(binned_10ms,nullhyp='mp')
-                        # with circular shuffle - for strong auto-correlations
-                        patterns,significance,zactmat = runPatterns(binned_10ms,nullhyp='circ',nshu=nshu,percentile=percentile)
-
-                        assemblyAct = computeAssemblyActivity(patterns,zactmat)
-                        # note that the zactmat could be from another session (like a sleep session for "replay" analysis)
-
-                        print('significant assemblies',assemblyAct[:,:].T.shape[1])
-
-                        # save to dictionary
-                        assembly_dictionary['entry'] = (filtered_arm_end_clusters,assemblyAct)
-                else:
-                        print('no spikes')
+                                print('no spikes')
+        except IndexError as e:
+                print('no ArmEndCluster data')
+                assembly_dictionary = [0,0,0]
+                filtered_arm_end_clusters = [0,0,0]
 
         key["assembly_dictionary"] = assembly_dictionary
         key["input_cluster_count"] = len(filtered_arm_end_clusters)

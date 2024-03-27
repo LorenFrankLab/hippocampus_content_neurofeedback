@@ -7,7 +7,7 @@ import sys
 from scipy import ndimage
 from scipy.ndimage import gaussian_filter
 
-from spyglass.decoding import SortedSpikesIndicator
+from spyglass.decoding.v0.sorted_spikes import SortedSpikesIndicator
 from spyglass.common import IntervalPositionInfo
 from spyglass.common import StateScriptFile, SampleCount, Nwbfile
 from spyglass.utils.dj_helper_fn import fetch_nwb

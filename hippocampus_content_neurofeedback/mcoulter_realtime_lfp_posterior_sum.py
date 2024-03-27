@@ -13,7 +13,7 @@ from spyglass.common.common_interval import interval_list_intersect
 from hippocampus_content_neurofeedback.mcoulter_realtime_filename import (
     RealtimeFilename,
 )
-from spyglass.spikesorting import Waveforms
+from spyglass.spikesorting.v0 import Waveforms
 from spyglass.mcoulter_statescript_rewards import (
     StatescriptRewardSelection,
     StatescriptReward,
@@ -1298,6 +1298,7 @@ class LFPPosteriorSum(dj.Computed):
                         else:
                             print(rip_time, min_diff)
 
+                    # try to replace find_nearest with digitize - can pass in all values at once
                     for time in center_well_timebins_sub:
                         adjusted_timestamp = time / 30000 + offset
                         # print(adjusted_timestamp[0])

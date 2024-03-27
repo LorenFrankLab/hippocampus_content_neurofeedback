@@ -13,7 +13,7 @@ from spyglass.common.common_interval import interval_list_intersect
 from hippocampus_content_neurofeedback.mcoulter_realtime_filename import (
     RealtimeFilename,
 )
-from spyglass.spikesorting import Waveforms
+from spyglass.spikesorting.v0 import Waveforms
 from spyglass.mcoulter_statescript_rewards import (
     StatescriptRewardSelection,
     StatescriptReward,
