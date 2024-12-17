@@ -188,20 +188,28 @@ class ArmEndClusters(dj.Computed):
         
         # exception for molly 3-24
         try:
-            if (
-                key["nwb_file_name"] == "molly20220324_.nwb"
-                and key["interval_list_name"] == realtime_interval_list[1]
-            ):
-                pos_name = pos_interval_list[1]
-
-            elif key["interval_list_name"] == realtime_interval_list[0]:
-                pos_name = pos_interval_list[0]
+            if key["interval_list_name"] == realtime_interval_list[0]:
+                if key["nwb_file_name"] == "molly20220324_.nwb":
+                    pos_name = 'pos 1 valid times'
+                else:
+                    pos_name = pos_interval_list[0]
             elif key["interval_list_name"] == realtime_interval_list[1]:
-                pos_name = pos_interval_list[1]
+                if key["nwb_file_name"] == "molly20220324_.nwb":
+                    pos_name = 'pos 3 valid times'
+                else:
+                    pos_name = pos_interval_list[1]
             elif key["interval_list_name"] == realtime_interval_list[2]:
-                pos_name = pos_interval_list[2]
+                if key["nwb_file_name"] == "molly20220324_.nwb":
+                    pos_name = 'pos 6 valid times'
+                else:
+                    pos_name = pos_interval_list[2]
             print(key["nwb_file_name"], pos_name, key["interval_list_name"])
+            pos_name_good = 1
+        except IndexError as e:
+            print('missing pos name. skip',key["nwb_file_name"] )
+            pos_name_good = 0
 
+        if pos_name_good == 1:
             # load real-time recording file
             os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
             hdf_file = path_add + key["realtime_filename"]
@@ -570,21 +578,31 @@ class ArmEndClusters(dj.Computed):
                     tet_counter = 0
                     for tetrode in tet_list:
                         # need sortedspikesindicator
-                        try:
-                            if tetrode in tet_list_3:
-                                print('manually curated tetrode')
+                        if tetrode in tet_list_3:
+                            print('manually curated tetrode')
+                            try:
                                 sorted_spikes_table = (SortedSpikesIndicator & {'nwb_file_name' : key["nwb_file_name"]}
                                                 & {'artifact_removed_interval_list_name LIKE "%100_prop%"'}
                                                 & {'sort_interval_name': sort_interval}
                                                 & {'interval_list_name':pos_name} & {'curation_id':3}
                                                     & {'sort_group_id':tetrode}).fetch_dataframe() 
-                            else:                            
+                                spike_table_good = 1
+                            except ValueError as e:
+                                print('missing tet. other sort interval',tetrode)
+                                spike_table_good = 0
+                        else:   
+                            try:                         
                                 sorted_spikes_table = (SortedSpikesIndicator & {'nwb_file_name' : key["nwb_file_name"]}
                                                 & {'artifact_removed_interval_list_name LIKE "%100_prop%"'}
                                                 & {'sort_interval_name': sort_interval}
                                                 & {'interval_list_name':pos_name} & {'curation_id':1}
                                                     & {'sort_group_id':tetrode}).fetch_dataframe() 
-                            
+                                spike_table_good = 1
+                            except ValueError as e:
+                                print('missing tet. other sort interval',tetrode)
+                                spike_table_good = 0      
+
+                        if spike_table_good == 1:                     
                             spike_timestamps = sorted_spikes_table.index
 
                             # note: based on code above, timebin from realtime system is start of 6ms timebin
@@ -666,20 +684,17 @@ class ArmEndClusters(dj.Computed):
                             # plt.scatter(target_arm_end_df['start'],np.repeat(1,target_arm_end_df.shape[0]))
                             # plt.scatter(ripples_df['start'],np.repeat(2,ripples_df.shape[0]))
 
-                        except ValueError as e:
-                            print('no spikes on tetrode',tetrode)
-                        
+                            #except ValueError as e:
+                            #    print('no spikes on tetrode',tetrode)
+                            
             print('arm 2',arm2_all_tet_spike_count)
             print('arm 1',arm1_all_tet_spike_count)
 
-        except IndexError as e:
-            print('no statescript entry')
+            print(key['nwb_file_name'],arm1_all_tet_spike_count,arm2_all_tet_spike_count,all_tet_cluster_ids)
 
-        print(key['nwb_file_name'],arm1_all_tet_spike_count,arm2_all_tet_spike_count,all_tet_cluster_ids)
-
-        key["arm1_end_spikes"] = arm1_all_tet_spike_count
-        key["arm2_end_spikes"] = arm2_all_tet_spike_count
-        key["cluster_id"] = all_tet_cluster_ids
+            key["arm1_end_spikes"] = arm1_all_tet_spike_count
+            key["arm2_end_spikes"] = arm2_all_tet_spike_count
+            key["cluster_id"] = all_tet_cluster_ids
 
 
-        self.insert1(key)
+            self.insert1(key)

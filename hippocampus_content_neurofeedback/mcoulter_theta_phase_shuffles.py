@@ -171,18 +171,33 @@ class ThetaPhaseShuffles(dj.Computed):
 
         # exception for molly 3-24
         try:
-            if (
-                key["nwb_file_name"] == "molly20220324_.nwb"
-                and key["interval_list_name"] == realtime_interval_list[1]
-            ):
-                pos_name = pos_interval_list[1]
-
+            if key["nwb_file_name"] == "pippin20210523_.nwb" and key["interval_list_name"] == '02_r1':
+                pass
+            elif key["nwb_file_name"] == "pippin20210523_.nwb" and key["interval_list_name"] == '04_r2':
+                pos_name = 'pos 3 valid times'
+            elif key["nwb_file_name"] == "pippin20210523_.nwb" and key["interval_list_name"] == '06_r3':
+                pos_name = 'pos 5 valid times'
+            elif key["nwb_file_name"] == "pippin20210524_.nwb" and key["interval_list_name"] == '04_r2':
+                pos_name = 'pos 3 valid times'
+            elif key["nwb_file_name"] == "pippin20210524_.nwb" and key["interval_list_name"] == '06_r3':
+                pos_name = 'pos 5 valid times'
+            # exception for molly 3-24
             elif key["interval_list_name"] == realtime_interval_list[0]:
-                pos_name = pos_interval_list[0]
+                if key["nwb_file_name"] == "molly20220324_.nwb":
+                    pos_name = 'pos 1 valid times'
+                else:
+                    pos_name = pos_interval_list[0]
             elif key["interval_list_name"] == realtime_interval_list[1]:
-                pos_name = pos_interval_list[1]
+                if key["nwb_file_name"] == "molly20220324_.nwb":
+                    pos_name = 'pos 3 valid times'
+                else:
+                    pos_name = pos_interval_list[1]
             elif key["interval_list_name"] == realtime_interval_list[2]:
-                pos_name = pos_interval_list[2]
+                if key["nwb_file_name"] == "molly20220324_.nwb":
+                    pos_name = 'pos 6 valid times'
+                else:
+                    pos_name = pos_interval_list[2]
+
             print(key["nwb_file_name"], pos_name, key["interval_list_name"])
             pos_name_exist = 1
         except IndexError as e:
@@ -333,7 +348,15 @@ class ThetaPhaseShuffles(dj.Computed):
                         ).fetch("interval_list_name")
                     )
                     try:
-                        if pos_name == all_pos[0]:
+                        if key["nwb_file_name"] == "pippin20210523_.nwb" and pos_name == 'pos 3 valid times':
+                            sort_interval = sort_intervals[0]
+                        elif key["nwb_file_name"] == "pippin20210523_.nwb" and pos_name == 'pos 5 valid times':
+                            sort_interval = sort_intervals[1]
+                        elif key["nwb_file_name"] == "pippin20210524_.nwb" and pos_name == 'pos 3 valid times':
+                            sort_interval = sort_intervals[0]
+                        elif key["nwb_file_name"] == "pippin20210524_.nwb" and pos_name == 'pos 5 valid times':
+                            sort_interval = sort_intervals[1]
+                        elif pos_name == all_pos[0]:
                             sort_interval = sort_intervals[0]
                         elif pos_name == all_pos[1]:
                             sort_interval = sort_intervals[0]

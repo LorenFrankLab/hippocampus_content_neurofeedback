@@ -366,18 +366,21 @@ class CellAssembly(dj.Computed):
             print(realtime_interval_list)
 
             # exception for molly 3-24
-            if (
-                key["nwb_file_name"] == "molly20220324_.nwb"
-                and key["interval_list_name"] == realtime_interval_list[1]
-            ):
-                pos_name = pos_interval_list[1]
-
-            elif key["interval_list_name"] == realtime_interval_list[0]:
-                pos_name = pos_interval_list[0]
+            if key["interval_list_name"] == realtime_interval_list[0]:
+                if key["nwb_file_name"] == "molly20220324_.nwb":
+                    pos_name = 'pos 1 valid times'
+                else:
+                    pos_name = pos_interval_list[0]
             elif key["interval_list_name"] == realtime_interval_list[1]:
-                pos_name = pos_interval_list[1]
+                if key["nwb_file_name"] == "molly20220324_.nwb":
+                    pos_name = 'pos 3 valid times'
+                else:
+                    pos_name = pos_interval_list[1]
             elif key["interval_list_name"] == realtime_interval_list[2]:
-                pos_name = pos_interval_list[2]
+                if key["nwb_file_name"] == "molly20220324_.nwb":
+                    pos_name = 'pos 6 valid times'
+                else:
+                    pos_name = pos_interval_list[2]
             print(key["nwb_file_name"], pos_name, key["interval_list_name"])
 
             # set sort interval based on pos_name - this is only for ginny and tonks

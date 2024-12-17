@@ -210,11 +210,26 @@ class LFPPosteriorSum(dj.Computed):
         post_thresh = lfp_posterior_sum_parameters["arm_posterior_fraction"]
         well_distance_max = lfp_posterior_sum_parameters["well_distance_max"]
 
+        parameter_name = (
+            LFPPosteriorSumParameters
+            & {
+                "lfp_posterior_sum_param_name": key[
+                    "lfp_posterior_sum_param_name"
+                ]
+            }
+        ).fetch()[0][0]
+
+        print('parameter name',parameter_name)
+
         # add new parameters
         # smoothing: yes/no
         # time overlap with ripples
-        smoothing_on = lfp_posterior_sum_parameters['smoothing']
-        ripple_prox = lfp_posterior_sum_parameters['rip_prox']
+        #smoothing_on = lfp_posterior_sum_parameters['smoothing']
+        #ripple_prox = lfp_posterior_sum_parameters['rip_prox']
+        
+        # for regular LFPPosteriorSum - no smoothing
+        smoothing_on = 0
+        ripple_prox = 0
 
         arm1_end_overlap = []
         arm2_end_overlap = []
@@ -233,6 +248,7 @@ class LFPPosteriorSum(dj.Computed):
         rip_zscore_arm1 = []
         rip_zscore_arm2 = []
         rip_zscore_reward = []
+        rip_zscore_random = []
         theta_phase_arm1 = []
         theta_power_arm1 = []
         theta_phase_arm2 = []
@@ -280,18 +296,29 @@ class LFPPosteriorSum(dj.Computed):
         print(realtime_interval_list)
 
         # exception for molly 3-24
-        if (
-            key["nwb_file_name"] == "molly20220324_.nwb"
-            and key["interval_list_name"] == realtime_interval_list[1]
-        ):
-            pos_name = pos_interval_list[1]
-
+        if key["nwb_file_name"] == "pippin20210523_.nwb" and key["interval_list_name"] == '04_r2':
+            pos_name = 'pos 3 valid times'
+        elif key["nwb_file_name"] == "pippin20210523_.nwb" and key["interval_list_name"] == '06_r3':
+            pos_name = 'pos 5 valid times'
+        elif key["nwb_file_name"] == "pippin20210524_.nwb" and key["interval_list_name"] == '04_r2':
+            pos_name = 'pos 3 valid times'
+        elif key["nwb_file_name"] == "pippin20210524_.nwb" and key["interval_list_name"] == '06_r3':
+            pos_name = 'pos 5 valid times'
         elif key["interval_list_name"] == realtime_interval_list[0]:
-            pos_name = pos_interval_list[0]
+            if key["nwb_file_name"] == "molly20220324_.nwb":
+                pos_name = 'pos 1 valid times'
+            else:
+                pos_name = pos_interval_list[0]
         elif key["interval_list_name"] == realtime_interval_list[1]:
-            pos_name = pos_interval_list[1]
+            if key["nwb_file_name"] == "molly20220324_.nwb":
+                pos_name = 'pos 3 valid times'
+            else:
+                pos_name = pos_interval_list[1]
         elif key["interval_list_name"] == realtime_interval_list[2]:
-            pos_name = pos_interval_list[2]
+            if key["nwb_file_name"] == "molly20220324_.nwb":
+                pos_name = 'pos 6 valid times'
+            else:
+                pos_name = pos_interval_list[2]
         print(key["nwb_file_name"], pos_name, key["interval_list_name"])
 
         # load real-time recording file
@@ -444,35 +471,39 @@ class LFPPosteriorSum(dj.Computed):
                 & (decoder_data_center_well["taskState"] == 2)
             ]
 
-            # add binary column for smoothed arm ends, then get intervals
-            task2_decode_center['group_arm1'] = (task2_decode_center['arm1_end_smooth'] != 
-                                                    task2_decode_center['arm1_end_smooth'].shift()).cumsum()
-            arm1_intervals = (task2_decode_center[task2_decode_center['arm1_end_smooth'] == 1].
-                                groupby('group_arm1').apply(lambda x: (x.index[0], x.index[-1])).tolist())
-            task2_decode_center['group_arm2'] = (task2_decode_center['arm2_end_smooth'] != 
-                                                    task2_decode_center['arm2_end_smooth'].shift()).cumsum()
-            arm2_intervals = (task2_decode_center[task2_decode_center['arm2_end_smooth'] == 1].
-                                groupby('group_arm2').apply(lambda x: (x.index[0], x.index[-1])).tolist())
-            print('arm1 end intervals',len(arm1_intervals),'arm2 end intervals',len(arm2_intervals))
-            # get timestamp for center bin
-            arm1_interval_mid_list = []
-            arm2_interval_mid_list = []
-            for event in arm1_intervals:
-                try:
-                    midpoint_event = (event[1] - round((event[1]-event[0])/2))
-                    mid_timestamp = task2_decode_center.loc[[midpoint_event]]['bin_timestamp'].values[0]
-                    arm1_interval_mid_list.append(mid_timestamp)
-                except KeyError as e:
-                    print('event did not match')
-            for event in arm2_intervals:
-                try:
-                    midpoint_event = (event[1] - round((event[1]-event[0])/2))
-                    mid_timestamp = task2_decode_center.loc[[midpoint_event]]['bin_timestamp'].values[0]
-                    arm2_interval_mid_list.append(mid_timestamp)
-                except KeyError as e:
-                    print('event did not match')
-            arm1_smooth_midpoint = np.array(arm1_interval_mid_list)
-            arm2_smooth_midpoint = np.array(arm2_interval_mid_list)
+            #print('task 2 decode center',task2_decode_center)
+
+            if smoothing_on == 1:
+                print('arm intervals for smoothed arm ends')
+                # add binary column for smoothed arm ends, then get intervals
+                task2_decode_center['group_arm1'] = (task2_decode_center['arm1_end_smooth'] != 
+                                                        task2_decode_center['arm1_end_smooth'].shift()).cumsum()
+                arm1_intervals = (task2_decode_center[task2_decode_center['arm1_end_smooth'] == 1].
+                                    groupby('group_arm1').apply(lambda x: (x.index[0], x.index[-1])).tolist())
+                task2_decode_center['group_arm2'] = (task2_decode_center['arm2_end_smooth'] != 
+                                                        task2_decode_center['arm2_end_smooth'].shift()).cumsum()
+                arm2_intervals = (task2_decode_center[task2_decode_center['arm2_end_smooth'] == 1].
+                                    groupby('group_arm2').apply(lambda x: (x.index[0], x.index[-1])).tolist())
+                print('arm1 end intervals',len(arm1_intervals),'arm2 end intervals',len(arm2_intervals))
+                # get timestamp for center bin
+                arm1_interval_mid_list = []
+                arm2_interval_mid_list = []
+                for event in arm1_intervals:
+                    try:
+                        midpoint_event = (event[1] - round((event[1]-event[0])/2))
+                        mid_timestamp = task2_decode_center.loc[[midpoint_event]]['bin_timestamp'].values[0]
+                        arm1_interval_mid_list.append(mid_timestamp)
+                    except KeyError as e:
+                        print('event did not match')
+                for event in arm2_intervals:
+                    try:
+                        midpoint_event = (event[1] - round((event[1]-event[0])/2))
+                        mid_timestamp = task2_decode_center.loc[[midpoint_event]]['bin_timestamp'].values[0]
+                        arm2_interval_mid_list.append(mid_timestamp)
+                    except KeyError as e:
+                        print('event did not match')
+                arm1_smooth_midpoint = np.array(arm1_interval_mid_list)
+                arm2_smooth_midpoint = np.array(arm2_interval_mid_list)
 
             # task2_head_dir = pd.merge_asof(
             #    task2_decode_center,
@@ -628,14 +659,17 @@ class LFPPosteriorSum(dj.Computed):
                 key_2["position_info_param_name"] = "default_decoding"
 
                 # use this info to find sort_interval - set first for pos_name 0,1 and second for 2
-                sort_intervals = np.unique(
-                    (
-                        Waveforms
-                        & {"nwb_file_name": key["nwb_file_name"]}
-                        & {"waveform_params_name": "default_whitened"}
-                        & {'artifact_removed_interval_list_name LIKE "%100_prop%"'}
-                    ).fetch("sort_interval_name")
-                )
+                if key['nwb_file_name'] == 'arthur20220314_.nwb':
+                    sort_intervals = ['r1_r2','r2_r3']
+                else:
+                    sort_intervals = np.unique(
+                        (
+                            Waveforms
+                            & {"nwb_file_name": key["nwb_file_name"]}
+                            & {"waveform_params_name": "default_whitened"}
+                            & {'artifact_removed_interval_list_name LIKE "%100_prop%"'}
+                        ).fetch("sort_interval_name")
+                    )
                 print("sort intervals", sort_intervals)
 
                 all_pos = np.unique(
@@ -643,7 +677,22 @@ class LFPPosteriorSum(dj.Computed):
                         StatescriptReward & {"nwb_file_name": key["nwb_file_name"]}
                     ).fetch("interval_list_name")
                 )
-                if pos_name == all_pos[0]:
+                if key["nwb_file_name"] == "pippin20210523_.nwb" and pos_name == 'pos 3 valid times':
+                    sort_interval = sort_intervals[0]
+                elif key["nwb_file_name"] == "pippin20210523_.nwb" and pos_name == 'pos 5 valid times':
+                    sort_interval = sort_intervals[1]
+                elif key["nwb_file_name"] == "pippin20210524_.nwb" and pos_name == 'pos 3 valid times':
+                    sort_interval = sort_intervals[0]
+                elif key["nwb_file_name"] == "pippin20210524_.nwb" and pos_name == 'pos 5 valid times':
+                    sort_interval = sort_intervals[1]
+                elif key["nwb_file_name"] == "molly20220324_.nwb" and pos_name == 'pos 1 valid times':
+                    sort_interval = sort_intervals[0]
+                elif key["nwb_file_name"] == "molly20220324_.nwb" and pos_name == 'pos 3 valid times':
+                    sort_interval = sort_intervals[0]
+                elif key["nwb_file_name"] == "molly20220324_.nwb" and pos_name == 'pos 6 valid times':
+                    sort_interval = sort_intervals[1]
+
+                elif pos_name == all_pos[0]:
                     sort_interval = sort_intervals[0]
                 elif pos_name == all_pos[1]:
                     sort_interval = sort_intervals[0]
@@ -843,7 +892,7 @@ class LFPPosteriorSum(dj.Computed):
                     #    )
                     elif rat_name == "molly":
                         ref_elec_list = [64, 193]
-                        target_interval_name = (
+                        target_interval_name_1 = (
                             key["nwb_file_name"]
                             + "_"
                             + sort_interval
@@ -852,7 +901,7 @@ class LFPPosteriorSum(dj.Computed):
 
                     elif rat_name == "ginny":
                         ref_elec_list = [112, 149]
-                        target_interval_name = (
+                        target_interval_name_1 = (
                             key["nwb_file_name"]
                             + "_"
                             + sort_interval
@@ -871,12 +920,20 @@ class LFPPosteriorSum(dj.Computed):
 
                     elif rat_name == "arthur":
                         ref_elec_list = [88, 161]
-                        target_interval_name = (
+                        target_interval_name_1 = (
+                            key["nwb_file_name"]
+                            + "_"
+                            + sort_interval
+                            #+ "_LFP_difference_600_frac_80_1000_frac_80_10ms_80_new_2_artifact_removed_valid_times"
+                            + "_LFP_difference_600_frac_80_1000_frac_80_10ms_80_new_2_no_ref"
+                        )
+                        target_interval_name_2 = (
                             key["nwb_file_name"]
                             + "_"
                             + sort_interval
                             + "_LFP_difference_600_frac_80_1000_frac_80_10ms_80_new_2_artifact_removed_valid_times"
-                        )
+                            #+ "_LFP_difference_600_frac_80_1000_frac_80_10ms_80_new_2_no_ref"
+                        )                        
                     elif rat_name == "pippin":
                         ref_elec_list = [120, 242]
                         target_interval_name = (
@@ -886,18 +943,33 @@ class LFPPosteriorSum(dj.Computed):
                             + "_LFP_difference_600_frac_80_1000_frac_80_10ms_80_new_2_no_ref_artifact_removed_valid_times"
                         )
 
-                    theta_phase_df = (
-                        LFPBandV1()
-                        & {"nwb_file_name": key["nwb_file_name"]}
-                        & {"filter_name": "Theta 5-11 Hz"}
-                        & {"target_interval_list_name": target_interval_name}
-                    ).compute_signal_phase(ref_elec_list)
-                    theta_power_df = (
-                        LFPBandV1()
-                        & {"nwb_file_name": key["nwb_file_name"]}
-                        & {"filter_name": "Theta 5-11 Hz"}
-                        & {"target_interval_list_name": target_interval_name}
-                    ).compute_signal_power(ref_elec_list)
+                    try:
+                        theta_phase_df = (
+                            LFPBandV1()
+                            & {"nwb_file_name": key["nwb_file_name"]}
+                            & {"filter_name": "Theta 5-11 Hz"}
+                            & {"target_interval_list_name": target_interval_name_1}
+                        ).compute_signal_phase(ref_elec_list)
+                        theta_power_df = (
+                            LFPBandV1()
+                            & {"nwb_file_name": key["nwb_file_name"]}
+                            & {"filter_name": "Theta 5-11 Hz"}
+                            & {"target_interval_list_name": target_interval_name_1}
+                        ).compute_signal_power(ref_elec_list)
+                    except IndexError as e:
+                        theta_phase_df = (
+                            LFPBandV1()
+                            & {"nwb_file_name": key["nwb_file_name"]}
+                            & {"filter_name": "Theta 5-11 Hz"}
+                            & {"target_interval_list_name": target_interval_name_2}
+                        ).compute_signal_phase(ref_elec_list)
+                        theta_power_df = (
+                            LFPBandV1()
+                            & {"nwb_file_name": key["nwb_file_name"]}
+                            & {"filter_name": "Theta 5-11 Hz"}
+                            & {"target_interval_list_name": target_interval_name_2}
+                        ).compute_signal_power(ref_elec_list)
+
                     # need to specify eletrode to smooth
                     smooth_electrode = "electrode " + str(ref_elec_list[1])
                     # try making power a little less smooth - was 500, now 200
@@ -928,9 +1000,7 @@ class LFPPosteriorSum(dj.Computed):
                         speed,
                         interval_ripple_lfps,
                         sampling_frequency,
-                    ) = sgrip.RippleTimesV1.get_ripple_lfps_and_position_info(
-                        key_3, key["nwb_file_name"], pos_name
-                    )
+                    ) = sgrip.RippleTimesV1.get_ripple_lfps_and_position_info(key_3)
                     lfp_timestamps = np.asarray(interval_ripple_lfps.index)
 
                     consensus_trace = get_Kay_ripple_consensus_trace(
@@ -1145,58 +1215,59 @@ class LFPPosteriorSum(dj.Computed):
                     else:
                         process_timebins = arm1_end_timebins.copy()
 
-                    for time in process_timebins:
-                        adjusted_timestamp = time / 30000 + offset
-                        # print(adjusted_timestamp[0])
-                        new_time = find_nearest(
-                            spyglass_position_df.index, adjusted_timestamp
-                        )
-                        new_speed = spyglass_position_df.loc[[new_time]][
-                            "speed_smooth"
-                        ].values[0]
-                        all_speeds_arm1.append(new_speed)
-
-                        # NOTE: should only use if this is a close match
-                        rip_time, placeholder, min_diff = find_nearest_1(
-                            lfp_timestamps, adjusted_timestamp
-                        )
-                        if min_diff < 0.02:
-                            rip_zscore_arm1.append(
-                                consensus_trace_zscore[
-                                    np.where(lfp_timestamps == rip_time)[0][0]
-                                ]
+                    if parameter_name != 'random_control':
+                        for time in process_timebins:
+                            adjusted_timestamp = time / 30000 + offset
+                            # print(adjusted_timestamp[0])
+                            new_time = find_nearest(
+                                spyglass_position_df.index, adjusted_timestamp
                             )
+                            new_speed = spyglass_position_df.loc[[new_time]][
+                                "speed_smooth"
+                            ].values[0]
+                            all_speeds_arm1.append(new_speed)
 
-                            # now they dont match if theta is missing - need to skip these
-                            # if np.isin(rip_time,theta_power_df.index):
-                            try:
-                                theta_power_arm1.append(
-                                    theta_power_df.loc[[rip_time]][
-                                        "smooth_power"
-                                    ].values[0]
+                            # NOTE: should only use if this is a close match
+                            rip_time, placeholder, min_diff = find_nearest_1(
+                                lfp_timestamps, adjusted_timestamp
+                            )
+                            if min_diff < 0.02:
+                                rip_zscore_arm1.append(
+                                    consensus_trace_zscore[
+                                        np.where(lfp_timestamps == rip_time)[0][0]
+                                    ]
                                 )
-                                theta_phase_arm1.append(
-                                    theta_phase_df.loc[[rip_time]][
-                                        smooth_electrode
-                                    ].values[0]
-                                )
-                                theta_power_zscore_arm1.append(
-                                    theta_power_df.loc[[rip_time]][
-                                        "zscore_power"
-                                    ].values[0]
-                                )
-                            except KeyError as e:
-                                pass
+
+                                # now they dont match if theta is missing - need to skip these
+                                # if np.isin(rip_time,theta_power_df.index):
+                                try:
+                                    theta_power_arm1.append(
+                                        theta_power_df.loc[[rip_time]][
+                                            "smooth_power"
+                                        ].values[0]
+                                    )
+                                    theta_phase_arm1.append(
+                                        theta_phase_df.loc[[rip_time]][
+                                            smooth_electrode
+                                        ].values[0]
+                                    )
+                                    theta_power_zscore_arm1.append(
+                                        theta_power_df.loc[[rip_time]][
+                                            "zscore_power"
+                                        ].values[0]
+                                    )
+                                except KeyError as e:
+                                    pass
+                                else:
+                                    theta_phase_arm1_speeds.append(new_speed)
                             else:
-                                theta_phase_arm1_speeds.append(new_speed)
-                        else:
-                            print(rip_time, min_diff)
+                                print(rip_time, min_diff)
 
-                    print(
-                        "done with arm 1",
-                        arm1_end_timebins.shape,
-                        len(theta_phase_arm1),
-                    )
+                        print(
+                            "done with arm 1",
+                            arm1_end_timebins.shape,
+                            len(theta_phase_arm1),
+                        )
 
                     # add condtional for smoothed decode
                     if smoothing_on == 1:
@@ -1204,55 +1275,56 @@ class LFPPosteriorSum(dj.Computed):
                     else:
                         process_timebins = arm2_end_timebins.copy()
 
-                    for time in process_timebins:
-                        adjusted_timestamp = time / 30000 + offset
-                        # print(adjusted_timestamp[0])
-                        new_time = find_nearest(
-                            spyglass_position_df.index, adjusted_timestamp
-                        )
-                        new_speed = spyglass_position_df.loc[[new_time]][
-                            "speed_smooth"
-                        ].values[0]
-                        all_speeds_arm2.append(new_speed)
-
-                        rip_time, placeholder, min_diff = find_nearest_1(
-                            lfp_timestamps, adjusted_timestamp
-                        )
-                        if min_diff < 0.02:
-                            # rip_time = find_nearest(lfp_timestamps,adjusted_timestamp)
-                            rip_zscore_arm2.append(
-                                consensus_trace_zscore[
-                                    np.where(lfp_timestamps == rip_time)[0][0]
-                                ]
+                    if parameter_name != 'random_control':
+                        for time in process_timebins:
+                            adjusted_timestamp = time / 30000 + offset
+                            # print(adjusted_timestamp[0])
+                            new_time = find_nearest(
+                                spyglass_position_df.index, adjusted_timestamp
                             )
-                            try:
-                                theta_power_arm2.append(
-                                    theta_power_df.loc[[rip_time]][
-                                        "smooth_power"
-                                    ].values[0]
-                                )
-                                theta_phase_arm2.append(
-                                    theta_phase_df.loc[[rip_time]][
-                                        smooth_electrode
-                                    ].values[0]
-                                )
-                                theta_power_zscore_arm2.append(
-                                    theta_power_df.loc[[rip_time]][
-                                        "zscore_power"
-                                    ].values[0]
-                                )
-                            except KeyError as e:
-                                pass
-                            else:
-                                theta_phase_arm2_speeds.append(new_speed)
-                        else:
-                            print(rip_time, min_diff)
+                            new_speed = spyglass_position_df.loc[[new_time]][
+                                "speed_smooth"
+                            ].values[0]
+                            all_speeds_arm2.append(new_speed)
 
-                    print(
-                        "arm 2 timebins - theta",
-                        arm2_end_timebins.shape,
-                        len(theta_phase_arm2),
-                    )
+                            rip_time, placeholder, min_diff = find_nearest_1(
+                                lfp_timestamps, adjusted_timestamp
+                            )
+                            if min_diff < 0.02:
+                                # rip_time = find_nearest(lfp_timestamps,adjusted_timestamp)
+                                rip_zscore_arm2.append(
+                                    consensus_trace_zscore[
+                                        np.where(lfp_timestamps == rip_time)[0][0]
+                                    ]
+                                )
+                                try:
+                                    theta_power_arm2.append(
+                                        theta_power_df.loc[[rip_time]][
+                                            "smooth_power"
+                                        ].values[0]
+                                    )
+                                    theta_phase_arm2.append(
+                                        theta_phase_df.loc[[rip_time]][
+                                            smooth_electrode
+                                        ].values[0]
+                                    )
+                                    theta_power_zscore_arm2.append(
+                                        theta_power_df.loc[[rip_time]][
+                                            "zscore_power"
+                                        ].values[0]
+                                    )
+                                except KeyError as e:
+                                    pass
+                                else:
+                                    theta_phase_arm2_speeds.append(new_speed)
+                            else:
+                                print(rip_time, min_diff)
+
+                        print(
+                            "arm 2 timebins - theta",
+                            arm2_end_timebins.shape,
+                            len(theta_phase_arm2),
+                        )
 
                     for time in target_timebins:
                         adjusted_timestamp = time / 30000 + offset
@@ -1318,6 +1390,11 @@ class LFPPosteriorSum(dj.Computed):
                             # rip_zscore_reward.append(consensus_trace_zscore[np.where(lfp_timestamps==rip_time)[0][0]])
                             # theta_power_reward.append(theta_power_df.loc[[rip_time]]['smooth_power'].values[0])
                             try:
+                                rip_zscore_random.append(
+                                    consensus_trace_zscore[
+                                        np.where(lfp_timestamps == rip_time)[0][0]
+                                    ]
+                                )
                                 theta_power_center.append(
                                     theta_power_df.loc[[rip_time]][
                                         "smooth_power"
@@ -1397,7 +1474,11 @@ class LFPPosteriorSum(dj.Computed):
         key["all_overlap_arm1"] = all_overlap_arm1
         key["all_overlap_arm1"] = all_overlap_arm2
         key["all_overlap_reward"] = all_overlap_reward
-        key["rip_zscore_arm1"] = rip_zscore_arm1
+        if parameter_name != 'random_control':
+            key["rip_zscore_arm1"] = rip_zscore_arm1
+        else:
+            key["rip_zscore_arm1"] = rip_zscore_random
+
         key["rip_zscore_arm2"] = rip_zscore_arm2
         key["rip_zscore_reward"] = rip_zscore_reward
         key["theta_power_arm1"] = theta_power_arm1
